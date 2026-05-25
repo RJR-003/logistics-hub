@@ -20,6 +20,18 @@ model Package {
   toAddress   String
   weight      Float
   status      String   @default("TO_BE_PICKED_UP")
+  currentLocation String? 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  sale        Sale?
+}
+
+model Sale {
+  id            String   @id @default(uuid())
+  packageId     String   @unique
+  amount        Float
+  paymentMethod String
+  createdAt     DateTime @default(now())
+
+  package       Package  @relation(fields: [packageId], references: [id])
 }
