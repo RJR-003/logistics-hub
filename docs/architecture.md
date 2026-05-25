@@ -165,15 +165,16 @@ A package can also be marked as **Delayed** at any point, with a reason attached
 
 ## Tech Stack
 
-| Concern               | Technology              | Reason                                                                                |
-| --------------------- | ----------------------- | ------------------------------------------------------------------------------------- |
-| Backend (both apps)   | Node.js + Fastify       | Familiar JS ecosystem, production-grade, fast                                         |
-| Database (both apps)  | PostgreSQL              | Relational data with strict integrity, excellent JSON support for raw updates staging |
-| ORM                   | Prisma                  | Type-safe, auto-generated migrations, great developer experience                      |
-| Frontend (App 1 only) | Next.js (App Router)    | Handles both the staff dashboard and the public tracking page                         |
-| Dev containers        | Docker + Docker Compose | Each app runs independently via `docker compose up`                                   |
-| Background jobs       | node-cron               | Lightweight cron scheduler for ETL processing and push jobs                           |
-| Cloud deployment      | Railway                 | Managed Postgres + Node.js hosting, simple environment config                         |
+| Concern               | Technology              | Reason                                                                                               |
+| --------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------- |
+| Language              | TypeScript              | Type safety across frontend and backend, catches errors at compile time, familiar from React/Next.js |
+| Backend (both apps)   | Node.js + Express       | Most widely used Node framework, huge community, excellent for learning backend fundamentals         |
+| Database (both apps)  | PostgreSQL              | Relational data with strict integrity, excellent JSON support for raw updates staging                |
+| ORM                   | Prisma                  | Type-safe, auto-generated migrations, Prisma Client types pair perfectly with TypeScript             |
+| Frontend (App 1 only) | Next.js (App Router)    | Handles both the staff dashboard and the public tracking page                                        |
+| Dev containers        | Docker + Docker Compose | Each app runs independently via `docker compose up`                                                  |
+| Background jobs       | node-cron               | Lightweight cron scheduler for ETL processing and push jobs                                          |
+| Cloud deployment      | Railway                 | Managed Postgres + Node.js hosting, simple environment config                                        |
 
 ---
 
@@ -208,14 +209,25 @@ logistics-hub/                          ← monorepo root
 ├── apps/
 │   ├── collection-app/                 ← App 1
 │   │   ├── frontend/                   ← Next.js (staff dashboard + public tracking)
-│   │   ├── backend/                    ← Fastify API + Prisma
+│   │   ├── backend/                    ← Express API + Prisma
+│   │   │   ├── src/
+│   │   │   │   ├── routes/             ← Express route handlers
+│   │   │   │   ├── controllers/        ← business logic separated from routes
+│   │   │   │   ├── middleware/         ← auth, error handling, logging
+│   │   │   │   └── index.ts            ← Express server entry point
+│   │   │   ├── prisma/
+│   │   │   │   ├── schema.prisma
+│   │   │   │   └── migrations/
+│   │   │   └── package.json
 │   │   └── docker-compose.yml
 │   │
 │   └── logistics-app/                  ← App 2
 │       ├── src/
-│       │   ├── routes/
+│       │   ├── routes/                 ← Express route handlers
+│       │   ├── controllers/            ← business logic separated from routes
+│       │   ├── middleware/             ← auth, error handling, logging
 │       │   ├── jobs/                   ← ETL push job + background processors
-│       │   └── index.ts
+│       │   └── index.ts                ← Express server entry point
 │       ├── prisma/
 │       └── docker-compose.yml
 │
@@ -255,3 +267,6 @@ Direct bulk updates from App 2 hitting App 1's main packages table is risky — 
 
 **Why a monorepo?**
 Both apps are part of the same system, developed by the same team, and need to be tested together in Stage 3. A monorepo keeps documentation, environment setup, and integration testing in one place without coupling the applications themselves.
+
+**Why Express and not Fastify?**
+Fastify is technically superior in several ways (faster, built-in schema validation, better TypeScript support out of the box). However, Express was chosen here because it is the most widely documented Node.js framework with the largest community. For someone learning backend fundamentals for the first time, the abundance of learning resources, examples, and Stack Overflow answers outweighs Fastify's technical advantages. Express works perfectly well with TypeScript via `@types/express`. The core concepts — routing, middleware, error handling, database integration — are identical in both frameworks and transfer directly.
