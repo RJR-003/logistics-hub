@@ -1,6 +1,7 @@
 import express, { Application, Request, Response } from "express";
 import prisma from "./lib/prisma";
 import packageRoutes from "./routes/packages";
+import { errorHandler } from "./middleware/errorHandler";
 
 const app: Application = express();
 const PORT = process.env.PORT || 3001;
@@ -17,6 +18,9 @@ app.get("/health", async (req: Request, res: Response) => {
     res.status(500).json({ status: "error", database: "disconnected" });
   }
 });
+
+//error handling
+app.use(errorHandler);
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);

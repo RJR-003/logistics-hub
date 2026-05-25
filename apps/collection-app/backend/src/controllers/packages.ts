@@ -1,38 +1,31 @@
-import { Request, Response } from "express";
+import { NextFunction, Request, Response } from "express";
 import prisma from "../lib/prisma";
+import { AppError } from "../middleware/errorHandler";
 
-export const createPackage = async (req: Request, res: Response) => {
+export const createPackage = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const { fromAddress, toAddress, weight, amount, paymentMethod } = req.body;
 
     // Validate package fields
     if (!fromAddress || !toAddress || !weight) {
-      res.status(400).json({
-        error: "fromAddress, toAddress and weight are required",
-      });
-      return;
+      throw new AppError("fromAddress, toAddress and weight are required", 400);
     }
 
     if (typeof weight !== "number" || weight <= 0) {
-      res.status(400).json({
-        error: "weight must be a positive number",
-      });
-      return;
+      throw new AppError("weight must be a positive number", 400);
     }
 
     // Validate sale fields
     if (!amount || !paymentMethod) {
-      res.status(400).json({
-        error: "amount and paymentMethod are required",
-      });
-      return;
+      throw new AppError("amount and paymentMethod are required", 400);
     }
 
     if (typeof amount !== "number" || amount <= 0) {
-      res.status(400).json({
-        error: "amount must be a positive number",
-      });
-      return;
+      throw new AppError("amount must be a positive number", 400);
     }
 
     // Create package AND sale in one transaction
@@ -60,12 +53,15 @@ export const createPackage = async (req: Request, res: Response) => {
       package: newPackage,
     });
   } catch (error) {
-    console.error("Error creating package:", error);
-    res.status(500).json({ error: "Internal server error" });
+    next(error); //pass all errors to the centralized error handler
   }
 };
 
-export const getAllPackages = async (req: Request, res: Response) => {
+export const getAllPackages = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const packages = await prisma.package.findMany({
       orderBy: { createdAt: "desc" },
@@ -74,12 +70,15 @@ export const getAllPackages = async (req: Request, res: Response) => {
 
     res.json({ packages });
   } catch (error) {
-    console.error("Error fetching packages:", error);
-    res.status(500).json({ error: "Internal server error" });
+    next(error);
   }
 };
 
-export const getPackageByTrackingId = async (req: Request, res: Response) => {
+export const getPackageByTrackingId = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const trackingId = req.params.trackingId as string;
 
@@ -89,13 +88,11 @@ export const getPackageByTrackingId = async (req: Request, res: Response) => {
     });
 
     if (!pkg) {
-      res.status(404).json({ error: "Package not found" });
-      return;
+      throw new AppError("Package not found", 404);
     }
 
     res.json({ package: pkg });
   } catch (error) {
-    console.error("Error fetching package:", error);
-    res.status(500).json({ error: "Internal server error" });
+    next(error);
   }
 };
