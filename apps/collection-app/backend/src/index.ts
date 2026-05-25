@@ -1,10 +1,12 @@
 import express, { Application, Request, Response } from "express";
 import prisma from "./lib/prisma";
+import packageRoutes from "./routes/packages";
 
 const app: Application = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(express.json());
+app.use("/api/packages", packageRoutes);
 
 app.get("/health", async (req: Request, res: Response) => {
   try {
