@@ -3,9 +3,13 @@ import {
   createPackage,
   getAllPackages,
   getPackageByTrackingId,
+  getDashboard,
 } from "../controllers/packages";
 
 const router = Router();
+
+//dashboard
+router.get("/dashboard", getDashboard);
 
 // POST /api/packages — create a new package
 router.post("/", createPackage);

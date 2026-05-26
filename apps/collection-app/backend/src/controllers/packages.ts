@@ -1,6 +1,75 @@
 import { NextFunction, Request, Response } from "express";
 import prisma from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
+import { PackageStatus } from "../constants/packageStatus";
+
+export const getDashboard = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    // Run all three queries simultaneously
+    // Promise.all fires them at the same time instead of one after another
+    // Faster — three parallel DB queries instead of three sequential ones
+    const [pending, active, delayed] = await Promise.all([
+      // Section 1 — pending pickup
+      prisma.package.findMany({
+        where: {
+          status: PackageStatus.TO_BE_PICKED_UP,
+        },
+        include: { sale: true },
+        orderBy: { createdAt: "desc" },
+      }),
+
+      // Section 2 — actively moving
+      prisma.package.findMany({
+        where: {
+          status: {
+            in: [
+              PackageStatus.PICKED_UP,
+              PackageStatus.ADDED_TO_BAG,
+              PackageStatus.EN_ROUTE,
+              PackageStatus.ARRIVED,
+              PackageStatus.SCHEDULED_FOR_DELIVERY,
+              PackageStatus.OUT_FOR_DELIVERY,
+            ],
+          },
+        },
+        include: { sale: true },
+        orderBy: { updatedAt: "desc" },
+      }),
+
+      // Section 3 — delayed
+      prisma.package.findMany({
+        where: {
+          status: PackageStatus.DELAYED,
+        },
+        include: { sale: true },
+        orderBy: { updatedAt: "desc" },
+      }),
+    ]);
+
+    res.json({
+      dashboard: {
+        pending: {
+          count: pending.length,
+          packages: pending,
+        },
+        active: {
+          count: active.length,
+          packages: active,
+        },
+        delayed: {
+          count: delayed.length,
+          packages: delayed,
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
 export const createPackage = async (
   req: Request,

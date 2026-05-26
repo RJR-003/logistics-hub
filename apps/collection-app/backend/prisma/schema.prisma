@@ -21,6 +21,7 @@ model Package {
   weight      Float
   status      String   @default("TO_BE_PICKED_UP")
   currentLocation String? 
+  delayReason     String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   sale        Sale?
