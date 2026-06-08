@@ -1,4 +1,5 @@
 import express, { Application, Request, Response } from "express";
+import cors from "cors";
 import prisma from "./lib/prisma";
 import packageRoutes from "./routes/packages";
 import { errorHandler } from "./middleware/errorHandler";
@@ -6,6 +7,14 @@ import { errorHandler } from "./middleware/errorHandler";
 const app: Application = express();
 const PORT = process.env.PORT || 3001;
 
+// CORS — must be before all routes
+app.use(
+  cors({
+    origin: process.env.FRONTEND_URL || "http://localhost:3000",
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  }),
+);
 app.use(express.json());
 app.use("/api/packages", packageRoutes);
 
