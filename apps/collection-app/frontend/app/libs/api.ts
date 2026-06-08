@@ -1,4 +1,9 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+// Client components use NEXT_PUBLIC_API_URL (localhost, browser accessible)
+// Server components use API_URL (docker service name, container accessible)
+const API_URL =
+  typeof window === "undefined"
+    ? process.env.API_URL || "http://localhost:3001"
+    : process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
 // Types — mirroring my Prisma models
 export type Sale = {
