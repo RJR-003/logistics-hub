@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { trackPackage, Package } from "../libs/api";
 import StatusBadge from "../components/StatusBadge";
+import Link from "next/link";
 
 export default function TrackPage() {
   const [trackingId, setTrackingId] = useState("");
@@ -34,6 +35,19 @@ export default function TrackPage() {
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-start pt-20 px-4">
       {/* Header */}
+      <div className="w-full absolute top-0 left-0 bg-white border-b border-gray-200 px-6 py-4">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <Link href="/" className="text-gray-400 hover:text-gray-600 text-sm">
+            ← Home
+          </Link>
+          <Link
+            href="/dashboard"
+            className="border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+          >
+            Staff Dashboard
+          </Link>
+        </div>
+      </div>
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Track Your Package</h1>
         <p className="text-gray-500 mt-2 text-sm">

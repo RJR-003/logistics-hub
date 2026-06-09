@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createPackage } from "../../libs/api";
+import { createPackage } from "../../../libs/api";
 
 export default function NewPackagePage() {
   const router = useRouter();
