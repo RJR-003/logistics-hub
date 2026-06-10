@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: logistics_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: logistics_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - logistics_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  logistics_db_data:

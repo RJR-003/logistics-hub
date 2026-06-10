@@ -1,0 +1,88 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Region {
+  id        String   @id @default(uuid())
+  code      String   @unique  // e.g. "SOUTH-01", "NORTH-02"
+  name      String            // e.g. "Chennai Region"
+  createdAt DateTime @default(now())
+
+  packages  Package[]
+  trucks    Truck[]
+}
+
+model Package {
+  id              String   @id @default(uuid())
+  trackingId      String   @unique
+  fromAddress     String
+  toAddress       String
+  weight          Float
+  status          String   @default("TO_BE_PICKED_UP")
+  currentLocation String?
+  regionId        String?
+  bagId           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  region          Region?        @relation(fields: [regionId], references: [id])
+  bag             Bag?           @relation(fields: [bagId], references: [id])
+  statusUpdates   StatusUpdate[]
+}
+
+model Bag {
+  id          String    @id @default(uuid())
+  code        String    @unique  // e.g. "BAG-SOUTH-001"
+  direction   String            // e.g. "NORTH", "SOUTH", "EAST", "WEST"
+  status      String    @default("OPEN")
+  truckId     String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  truck       Truck?    @relation(fields: [truckId], references: [id])
+  packages    Package[]
+  delay       Delay?
+}
+
+model Truck {
+  id                  String    @id @default(uuid())
+  code                String    @unique  // e.g. "TRUCK-001"
+  regionId            String
+  scheduledDeparture  DateTime
+  actualDeparture     DateTime?
+  status              String    @default("SCHEDULED")
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  region              Region    @relation(fields: [regionId], references: [id])
+  bags                Bag[]
+  delay               Delay?
+}
+
+model Delay {
+  id        String   @id @default(uuid())
+  reason    String
+  bagId     String?  @unique
+  truckId   String?  @unique
+  createdAt DateTime @default(now())
+
+  bag       Bag?     @relation(fields: [bagId], references: [id])
+  truck     Truck?   @relation(fields: [truckId], references: [id])
+}
+
+model StatusUpdate {
+  id          String   @id @default(uuid())
+  packageId   String
+  status      String
+  location    String?
+  note        String?
+  createdAt   DateTime @default(now())
+
+  package     Package  @relation(fields: [packageId], references: [id])
+}
