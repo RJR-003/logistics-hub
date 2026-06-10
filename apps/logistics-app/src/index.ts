@@ -1,5 +1,11 @@
 import express, { Application, Request, Response } from "express";
 import cors from "cors";
+import prisma from "./lib/prisma";
+import { errorHandler } from "./middleware/errorHandler";
+import webhookRoutes from "./routes/webhook";
+import packageRoutes from "./routes/packages";
+import bagRoutes from "./routes/bags";
+import dashboardRoutes from "./routes/dashboard";
 
 const app: Application = express();
 const PORT = process.env.PORT || 3002;
@@ -7,9 +13,25 @@ const PORT = process.env.PORT || 3002;
 app.use(cors());
 app.use(express.json());
 
-app.get("/health", (req: Request, res: Response) => {
-  res.json({ status: "ok", app: "Courier Logistics API" });
+app.use("/webhook", webhookRoutes);
+app.use("/api/packages", packageRoutes);
+app.use("/api/bags", bagRoutes);
+app.use("/api/dashboard", dashboardRoutes);
+
+app.get("/health", async (req: Request, res: Response) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({
+      status: "ok",
+      app: "Courier Logistics API",
+      database: "connected",
+    });
+  } catch (error) {
+    res.status(500).json({ status: "error", database: "disconnected" });
+  }
 });
+
+app.use(errorHandler);
 
 app.listen(PORT, () => {
   console.log(`Logistics app running on http://localhost:${PORT}`);
