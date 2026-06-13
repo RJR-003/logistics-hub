@@ -36,3 +36,12 @@ model Sale {
 
   package       Package  @relation(fields: [packageId], references: [id])
 }
+
+model RawUpdate {
+  id          String   @id @default(uuid())
+  payload     Json
+  processed   Boolean  @default(false)
+  processedAt DateTime?
+  error       String?
+  createdAt   DateTime @default(now())
+}

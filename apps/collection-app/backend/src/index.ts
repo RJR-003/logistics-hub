@@ -1,8 +1,11 @@
 import express, { Application, Request, Response } from "express";
 import cors from "cors";
+import cron from "node-cron";
 import prisma from "./lib/prisma";
 import packageRoutes from "./routes/packages";
 import { errorHandler } from "./middleware/errorHandler";
+import rawUpdateRoutes from "./routes/rawUpdates";
+import { runRawUpdateProcessor } from "./jobs/rawUpdateProcessor";
 
 const app: Application = express();
 const PORT = process.env.PORT || 3001;
@@ -17,6 +20,7 @@ app.use(
 );
 app.use(express.json());
 app.use("/api/packages", packageRoutes);
+app.use("/api/raw-updates", rawUpdateRoutes);
 
 app.get("/health", async (req: Request, res: Response) => {
   try {
@@ -30,6 +34,15 @@ app.get("/health", async (req: Request, res: Response) => {
 
 //error handling
 app.use(errorHandler);
+
+// Process raw updates every 30 seconds
+cron.schedule("*/30 * * * * *", () => {
+  runRawUpdateProcessor();
+});
+
+console.log(
+  "[Processor] Raw update processor scheduled — runs every 30 seconds",
+);
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);

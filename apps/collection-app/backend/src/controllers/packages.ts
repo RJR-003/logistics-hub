@@ -3,6 +3,10 @@ import prisma from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { PackageStatus } from "../constants/packageStatus";
 
+const APP2_WEBHOOK_URL = process.env.APP2_URL
+  ? `${process.env.APP2_URL}/webhook/package`
+  : "http://localhost:3002/webhook/package";
+
 export const getDashboard = async (
   req: Request,
   res: Response,
@@ -114,6 +118,22 @@ export const createPackage = async (
       include: {
         sale: true, // return the sale details in the response
       },
+    });
+
+    // Fire webhook to App 2 — don't await, don't block the response
+    // If App 2 is down, the package is still created in App 1
+    fetch(APP2_WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        trackingId: newPackage.trackingId,
+        fromAddress: newPackage.fromAddress,
+        toAddress: newPackage.toAddress,
+        weight: newPackage.weight,
+      }),
+    }).catch((err) => {
+      // Log but never fail the main request because of this
+      console.error("[Webhook] Failed to notify App 2:", err.message);
     });
 
     res.status(201).json({
