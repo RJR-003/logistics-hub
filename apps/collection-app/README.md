@@ -139,11 +139,28 @@ APP2_URL=http://localhost:3002
 
 > Note: When running via Docker Compose, environment variables are injected automatically. The `.env` file is only needed for development mode.
 
+### Backend Environment Variables
+
+| Variable       | Dev Mode                              | Docker Mode                          |
+| -------------- | ------------------------------------- | ------------------------------------ |
+| `PORT`         | `3001`                                | `3001`                               |
+| `DATABASE_URL` | `postgresql://...@localhost:5432/...` | `postgresql://...@postgres:5432/...` |
+| `FRONTEND_URL` | `http://localhost:3000`               | `http://localhost:3000`              |
+| `APP2_URL`     | `http://localhost:3002`               | `http://logistics_backend:3002`      |
+
 ### Frontend (`apps/collection-app/frontend/.env.local`)
 
 ```
 NEXT_PUBLIC_API_URL=http://localhost:3001
 ```
+
+---
+
+## Docker Networking
+
+This app creates a shared Docker network called `logistics_network` that
+the Courier Logistics Application joins. Always start this app before
+starting the Logistics Application.
 
 ---
 

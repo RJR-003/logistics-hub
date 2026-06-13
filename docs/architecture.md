@@ -178,6 +178,36 @@ A package can also be marked as **Delayed** at any point, with a reason attached
 
 ---
 
+## Docker Networking
+
+Both applications share a named Docker bridge network called
+`logistics_network`. This allows the two backend containers to
+communicate directly using container names as hostnames, without
+routing through the host machine.
+
+This is required on Linux where `host.docker.internal` is not
+supported by default.
+
+App 1 defines and creates the network. App 2 declares it as external
+and joins it. App 1 must therefore always be started before App 2.
+
+Container hostname reference:
+
+| Container      | Hostname             | Port   |
+| -------------- | -------------------- | ------ |
+| App 1 backend  | `collection_backend` | `3001` |
+| App 2 backend  | `logistics_backend`  | `3002` |
+| App 1 postgres | `collection_db`      | `5432` |
+| App 2 postgres | `logistics_db`       | `5432` |
+
+Note: Both Postgres containers listen on internal port `5432`. They
+do not conflict because they have separate IPs on the Docker network.
+The host port for App 2's Postgres is mapped to `5433` to avoid
+conflicts when accessed from the host machine via Prisma Studio or
+Postman.
+
+---
+
 ## Database Design Summary
 
 ### App 1 — Courier Collection Application

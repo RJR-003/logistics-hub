@@ -69,6 +69,30 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5433/logistics_db
 APP1_URL=http://localhost:3001
 ```
 
+### Environment Variables
+
+| Variable       | Dev Mode                              | Docker Mode                          |
+| -------------- | ------------------------------------- | ------------------------------------ |
+| `PORT`         | `3002`                                | `3002`                               |
+| `DATABASE_URL` | `postgresql://...@localhost:5433/...` | `postgresql://...@postgres:5432/...` |
+| `APP1_URL`     | `http://localhost:3001`               | `http://collection_backend:3001`     |
+
+---
+
+## Docker Networking
+
+This app joins the `logistics_network` Docker network created by the
+Courier Collection Application. The Collection Application must be
+running before starting this app.
+
+```bash
+# Always start App 1 first
+cd apps/collection-app && docker compose up --build
+
+# Then start App 2
+cd apps/logistics-app && docker compose up --build
+```
+
 ---
 
 ## API Endpoints

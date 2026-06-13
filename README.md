@@ -70,14 +70,19 @@ App 2 runs a scheduled job every 6 hours (1 minute in development) that collects
 
 Each application runs independently via Docker Compose. To run the full system, start both apps in separate terminals.
 
-**Terminal 1 — Start App 1:**
+App 1 must start first — it creates the shared Docker network that App 2 joins.
+
+**Terminal 1 — Start App 1 first:**
 
 ```bash
 cd apps/collection-app
 docker compose up --build
 ```
 
-**Terminal 2 — Start App 2:**
+Wait until you see:
+collection_backend | Server running on http://localhost:3001
+
+**Terminal 2 — Then Start App 2:**
 
 ```bash
 cd apps/logistics-app
@@ -119,6 +124,22 @@ npm install && npm run dev
 cd apps/logistics-app
 npm install && npm run dev
 ```
+
+---
+
+## Docker Networking
+
+Both apps share a Docker bridge network called `logistics_network`.
+App 1 creates it — App 2 joins it as an external network. This allows
+the two backend containers to talk directly via container names without
+going through the host machine.
+
+| Container      | Hostname on network  |
+| -------------- | -------------------- |
+| App 1 backend  | `collection_backend` |
+| App 2 backend  | `logistics_backend`  |
+| App 1 postgres | `collection_db`      |
+| App 2 postgres | `logistics_db`       |
 
 ---
 

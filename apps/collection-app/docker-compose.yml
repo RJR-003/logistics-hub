@@ -18,6 +18,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - logistics_network
 
   backend:
     build:
@@ -31,10 +33,12 @@ services:
       PORT: 3001
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/collection_db
       FRONTEND_URL: http://localhost:3000
-      APP2_URL: http://host.docker.internal:3002
+      APP2_URL: http://logistics_backend:3002
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      - logistics_network
 
   frontend:
     build:
@@ -47,8 +51,15 @@ services:
     ports:
       - "3000:3000"
     environment:
-      API_URL: http://backend:3001
+      API_URL: http://collection_backend:3001
     depends_on:
       - backend
+    networks:
+      - logistics_network
 volumes:
   collection_db_data:
+
+networks:
+  logistics_network:
+    name: logistics_network
+    driver: bridge
