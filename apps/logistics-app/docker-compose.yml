@@ -16,6 +16,20 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: logistics_backend
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    environment:
+      PORT: 3002
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/logistics_db
+      APP1_URL: http://host.docker.internal:3001
+    depends_on:
+      postgres:
+        condition: service_healthy
 volumes:
   logistics_db_data:
