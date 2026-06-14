@@ -36,9 +36,27 @@ services:
         condition: service_healthy
     networks:
       - logistics_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:3002
+    container_name: logistics_frontend
+    restart: unless-stopped
+    ports:
+      - "3003:3003"
+    environment:
+      API_URL: http://logistics_backend:3002
+    depends_on:
+      - backend
+    networks:
+      - logistics_network
 volumes:
   logistics_db_data:
 
 networks:
   logistics_network:
-    external: true
+    name: logistics_network
+    driver: bridge

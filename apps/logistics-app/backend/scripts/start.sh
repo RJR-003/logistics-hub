@@ -12,7 +12,7 @@ echo "Running migrations..."
 npx prisma migrate deploy
 
 echo "Running seed..."
-npx ts-node --skip-project prisma/seed.ts
+node dist/prisma/seed.js
 
 echo "Starting server..."
 npm start

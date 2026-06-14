@@ -10,6 +10,7 @@
         "Prisma.prisma",
         "dbaeumer.vscode-eslint",
         "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss",
         "christian-kohler.path-intellisense",
         "ms-azuretools.vscode-docker"
       ],
@@ -21,7 +22,7 @@
     }
   },
 
-  "forwardPorts": [3002, 5433],
+  "forwardPorts": [3002, 3003, 5433],
 
   "postCreateCommand": "cd backend && npm install && cd ../frontend && npm install && echo '\n✅ Setup complete. Next steps:\n  cd backend && cp .env.example .env\n  cd frontend && cp .env.example .env.local\n  Then run npm run migrate in backend and npm run dev in each folder'",
 

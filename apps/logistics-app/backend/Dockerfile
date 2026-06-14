@@ -13,6 +13,9 @@ RUN npx prisma generate
 COPY . .
 RUN npm run build
 
+# Compile seed separately outside of tsconfig scope
+RUN npx tsc prisma/seed.ts --outDir dist/prisma --module commonjs --esModuleInterop true --skipLibCheck true --resolveJsonModule true --ignoreConfig
+
 EXPOSE 3002
 
 COPY scripts/start.sh ./scripts/start.sh
