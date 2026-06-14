@@ -23,7 +23,7 @@
 
   "forwardPorts": [3002, 5433],
 
-  "postCreateCommand": "npm install",
+  "postCreateCommand": "cd backend && npm install && cd ../frontend && npm install && echo '\n✅ Setup complete. Next steps:\n  cd backend && cp .env.example .env\n  cd frontend && cp .env.example .env.local\n  Then run npm run migrate in backend and npm run dev in each folder'",
 
   "remoteUser": "node"
 }

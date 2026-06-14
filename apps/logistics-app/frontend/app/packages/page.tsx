@@ -7,6 +7,7 @@ import {
   assignToBag,
   Package,
   Bag,
+  markForLocalDelivery,
 } from "../lib/api";
 import StatusBadge from "../components/StatusBadge";
 import EmptyState from "../components/EmptyState";
@@ -54,6 +55,19 @@ export default function PackagesPage() {
       setError(err instanceof Error ? err.message : "Failed to assign");
     } finally {
       setAssigning(false);
+    }
+  }
+
+  async function handleLocalDelivery(pkg: Package) {
+    setError(null);
+    try {
+      await markForLocalDelivery(pkg.id);
+      setSuccess(
+        `Package ${pkg.trackingId.slice(0, 8)}... scheduled for local delivery`,
+      );
+      fetchData();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to update package");
     }
   }
 
@@ -157,17 +171,31 @@ export default function PackagesPage() {
                     {pkg.bag?.code || "—"}
                   </td>
                   <td className="px-4 py-3">
-                    {!pkg.bagId && pkg.status !== "DELAYED" && (
-                      <button
-                        onClick={() => {
-                          setSelectedPackage(pkg);
-                          setSuccess(null);
-                        }}
-                        className="text-blue-600 hover:text-blue-800 text-xs font-medium"
-                      >
-                        Assign to bag
-                      </button>
-                    )}
+                    <div className="flex items-center gap-3">
+                      {!pkg.bagId &&
+                        (pkg.status === "TO_BE_PICKED_UP" ||
+                          pkg.status === "PICKED_UP" ||
+                          pkg.status === "ARRIVED") && (
+                          <button
+                            onClick={() => {
+                              setSelectedPackage(pkg);
+                              setSuccess(null);
+                            }}
+                            className="text-blue-600 hover:text-blue-800 text-xs font-medium"
+                          >
+                            Assign to bag
+                          </button>
+                        )}
+                      {/* Mark for local delivery — only for arrived packages */}
+                      {pkg.status === "ARRIVED" && (
+                        <button
+                          onClick={() => handleLocalDelivery(pkg)}
+                          className="text-green-600 hover:text-green-800 text-xs font-medium"
+                        >
+                          Schedule Delivery
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

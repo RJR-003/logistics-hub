@@ -194,3 +194,134 @@ export const delayTruck = async (
     next(error);
   }
 };
+
+export const departTruck = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { truckId } = req.body;
+
+    if (!truckId) throw new AppError("truckId is required", 400);
+
+    const truck = await prisma.truck.findUnique({
+      where: { id: truckId },
+      include: {
+        bags: { include: { packages: true } },
+      },
+    });
+
+    if (!truck) throw new AppError("Truck not found", 404);
+    if (truck.status === "DEPARTED") {
+      throw new AppError("Truck has already departed", 400);
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // Mark truck as departed
+      await tx.truck.update({
+        where: { id: truckId },
+        data: {
+          status: TruckStatus.DEPARTED,
+          actualDeparture: new Date(),
+        },
+      });
+
+      // Update all bags to IN_TRANSIT
+      for (const bag of truck.bags) {
+        await tx.bag.update({
+          where: { id: bag.id },
+          data: { status: BagStatus.IN_TRANSIT },
+        });
+
+        // Log status update for each package
+        for (const pkg of bag.packages) {
+          await tx.statusUpdate.create({
+            data: {
+              packageId: pkg.id,
+              status: PackageStatus.EN_ROUTE,
+              note: `Truck ${truck.code} departed`,
+            },
+          });
+        }
+      }
+    });
+
+    res.json({ message: `Truck ${truck.code} marked as departed` });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const arriveTruck = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { truckId, regionCode } = req.body;
+
+    if (!truckId || !regionCode) {
+      throw new AppError("truckId and regionCode are required", 400);
+    }
+
+    const truck = await prisma.truck.findUnique({
+      where: { id: truckId },
+      include: {
+        bags: { include: { packages: true } },
+      },
+    });
+
+    if (!truck) throw new AppError("Truck not found", 404);
+    if (truck.status !== "DEPARTED") {
+      throw new AppError("Truck must be departed before arriving", 400);
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // Mark truck as arrived
+      await tx.truck.update({
+        where: { id: truckId },
+        data: { status: TruckStatus.ARRIVED },
+      });
+
+      // Update all bags to ARRIVED
+      for (const bag of truck.bags) {
+        await tx.bag.update({
+          where: { id: bag.id },
+          data: { status: BagStatus.ARRIVED },
+        });
+
+        // Update all packages — arrived at new region
+        for (const pkg of bag.packages) {
+          await tx.package.update({
+            where: { id: pkg.id },
+            data: {
+              status: PackageStatus.ARRIVED,
+              currentLocation: regionCode,
+              bagId: null, // ← detach from bag, ready for re-bagging
+            },
+          });
+
+          await tx.statusUpdate.create({
+            data: {
+              packageId: pkg.id,
+              status: PackageStatus.ARRIVED,
+              location: regionCode,
+              note: `Arrived at ${regionCode} hub`,
+            },
+          });
+        }
+      }
+    });
+
+    res.json({
+      message: `Truck ${truck.code} arrived at ${regionCode}`,
+      packagesReady: truck.bags.reduce(
+        (sum, bag) => sum + bag.packages.length,
+        0,
+      ),
+    });
+  } catch (error) {
+    next(error);
+  }
+};

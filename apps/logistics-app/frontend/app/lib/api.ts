@@ -206,3 +206,61 @@ export async function updatePackageStatus(data: {
   const result = await res.json();
   return result.package;
 }
+
+export async function departTruck(truckId: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/trucks/depart`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ truckId }),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || "Failed to depart truck");
+  }
+}
+
+export async function arriveTruck(data: {
+  truckId: string;
+  regionCode: string;
+}): Promise<void> {
+  const res = await fetch(`${API_URL}/api/trucks/arrive`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || "Failed to arrive truck");
+  }
+}
+
+export async function delayTruck(data: {
+  truckId: string;
+  reason: string;
+}): Promise<void> {
+  const res = await fetch(`${API_URL}/api/trucks/delay`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || "Failed to delay truck");
+  }
+}
+
+export async function markForLocalDelivery(
+  packageId: string,
+): Promise<Package> {
+  const res = await fetch(`${API_URL}/api/packages/local-delivery`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ packageId }),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || "Failed to mark for local delivery");
+  }
+  const result = await res.json();
+  return result.package;
+}

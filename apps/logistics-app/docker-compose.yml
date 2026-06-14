@@ -21,7 +21,7 @@ services:
 
   backend:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
     container_name: logistics_backend
     restart: unless-stopped

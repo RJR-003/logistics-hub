@@ -127,3 +127,49 @@ export const getAllPackages = async (
     next(error);
   }
 };
+
+export const markForLocalDelivery = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { packageId } = req.body;
+
+    if (!packageId) throw new AppError("packageId is required", 400);
+
+    const pkg = await prisma.package.findUnique({
+      where: { id: packageId },
+    });
+
+    if (!pkg) throw new AppError("Package not found", 404);
+
+    if (pkg.status !== PackageStatus.ARRIVED) {
+      throw new AppError(
+        "Package must be in ARRIVED status to schedule for delivery",
+        400,
+      );
+    }
+
+    const updated = await prisma.package.update({
+      where: { id: packageId },
+      data: { status: PackageStatus.SCHEDULED_FOR_DELIVERY },
+    });
+
+    await prisma.statusUpdate.create({
+      data: {
+        packageId,
+        status: PackageStatus.SCHEDULED_FOR_DELIVERY,
+        location: pkg.currentLocation || undefined,
+        note: "Package reached destination — scheduled for local delivery",
+      },
+    });
+
+    res.json({
+      message: "Package scheduled for local delivery",
+      package: updated,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
