@@ -8,6 +8,8 @@ import packageRoutes from "./routes/packages";
 import bagRoutes from "./routes/bags";
 import dashboardRoutes from "./routes/dashboard";
 import { runEtlPushJob } from "./jobs/etlPushJob";
+import truckRoutes from "./routes/trucks";
+import regionRoutes from "./routes/regions";
 
 const app: Application = express();
 const PORT = process.env.PORT || 3002;
@@ -19,6 +21,8 @@ app.use("/webhook", webhookRoutes);
 app.use("/api/packages", packageRoutes);
 app.use("/api/bags", bagRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/trucks", truckRoutes);
+app.use("/api/regions", regionRoutes);
 
 app.get("/health", async (req: Request, res: Response) => {
   try {
