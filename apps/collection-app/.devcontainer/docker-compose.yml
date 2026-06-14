@@ -1,0 +1,30 @@
+services:
+  devcontainer:
+    image: mcr.microsoft.com/devcontainers/typescript-node:20
+    volumes:
+      - ../:/workspace:cached
+    command: sleep infinity
+    networks:
+      - devnet
+
+  postgres:
+    image: postgres:15
+    container_name: collection_db_dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: collection_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - collection_dev_db_data:/var/lib/postgresql/data
+    networks:
+      - devnet
+
+networks:
+  devnet:
+    driver: bridge
+
+volumes:
+  collection_dev_db_data:

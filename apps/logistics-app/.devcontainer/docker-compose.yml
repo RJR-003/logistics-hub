@@ -1,0 +1,30 @@
+services:
+  devcontainer:
+    image: mcr.microsoft.com/devcontainers/typescript-node:20
+    volumes:
+      - ../:/workspace:cached
+    command: sleep infinity
+    networks:
+      - devnet
+
+  postgres:
+    image: postgres:15
+    container_name: logistics_db_dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: logistics_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - logistics_dev_db_data:/var/lib/postgresql/data
+    networks:
+      - devnet
+
+networks:
+  devnet:
+    driver: bridge
+
+volumes:
+  logistics_dev_db_data:
