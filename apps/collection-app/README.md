@@ -9,8 +9,9 @@ The front-office application of the Logistics Operations Hub. Used by front-offi
 - Staff can register a new package and generate a tracking ID for the customer
 - Staff can view a dashboard of all packages grouped by status
 - Customers can track their package using the tracking ID on the public tracking page
-- Receives status updates from the Courier Logistics Application every 6 hours via an ETL push job
 - Notifies the Courier Logistics Application via webhook whenever a new package is created
+- Receives status updates from the Courier Logistics Application every 6 hours via an ETL push job
+- Processes raw status updates asynchronously via a background job every 30 seconds
 
 ---
 
@@ -102,6 +103,8 @@ docker compose up postgres -d
 ```bash
 cd apps/collection-app/backend
 npm install
+cp .env.example .env
+npm run migrate
 npm run dev
 ```
 
@@ -112,6 +115,7 @@ Backend runs on `http://localhost:3001`.
 ```bash
 cd apps/collection-app/frontend
 npm install
+cp .env.example .env.local
 npm run dev
 ```
 
@@ -119,48 +123,55 @@ Frontend runs on `http://localhost:3000`.
 
 ---
 
+### Dev Container (VS Code)
+
+Install the [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) extension in VS Code.
+
+```bash
+# Open the collection-app folder in VS Code
+code apps/collection-app
+
+# VS Code will detect .devcontainer/ and prompt:
+# "Reopen in Container" → click it
+```
+
+Once inside the container, open a terminal and run:
+
+```bash
+# Backend
+cd backend
+cp .env.example .env
+npm run migrate
+npm run dev
+
+# Frontend (new terminal tab)
+cd frontend
+cp .env.example .env.local
+npm run dev
+```
+
+Each developer gets their own isolated database. No shared state between developers.
+
+---
+
 ## Environment Variables
 
 ### Backend (`apps/collection-app/backend/.env`)
 
-```
-PORT=3001
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/collection_db
-FRONTEND_URL=http://localhost:3000
-APP2_URL=http://localhost:3002
-```
-
-| Variable       | Description                                   |
-| -------------- | --------------------------------------------- |
-| `PORT`         | Port the backend runs on                      |
-| `DATABASE_URL` | PostgreSQL connection string                  |
-| `FRONTEND_URL` | Allowed CORS origin for the frontend          |
-| `APP2_URL`     | Base URL of the Courier Logistics Application |
+| Variable       | Dev Mode                                                      | Docker Mode                                                  |
+| -------------- | ------------------------------------------------------------- | ------------------------------------------------------------ |
+| `PORT`         | `3001`                                                        | `3001`                                                       |
+| `DATABASE_URL` | `postgresql://postgres:postgres@localhost:5432/collection_db` | `postgresql://postgres:postgres@postgres:5432/collection_db` |
+| `FRONTEND_URL` | `http://localhost:3000`                                       | `http://localhost:3000`                                      |
+| `APP2_URL`     | `http://localhost:3002`                                       | `http://logistics_backend:3002`                              |
 
 > Note: When running via Docker Compose, environment variables are injected automatically. The `.env` file is only needed for development mode.
-
-### Backend Environment Variables
-
-| Variable       | Dev Mode                              | Docker Mode                          |
-| -------------- | ------------------------------------- | ------------------------------------ |
-| `PORT`         | `3001`                                | `3001`                               |
-| `DATABASE_URL` | `postgresql://...@localhost:5432/...` | `postgresql://...@postgres:5432/...` |
-| `FRONTEND_URL` | `http://localhost:3000`               | `http://localhost:3000`              |
-| `APP2_URL`     | `http://localhost:3002`               | `http://logistics_backend:3002`      |
 
 ### Frontend (`apps/collection-app/frontend/.env.local`)
 
 ```
 NEXT_PUBLIC_API_URL=http://localhost:3001
 ```
-
----
-
-## Docker Networking
-
-This app creates a shared Docker network called `logistics_network` that
-the Courier Logistics Application joins. Always start this app before
-starting the Logistics Application.
 
 ---
 
@@ -236,8 +247,6 @@ curl http://localhost:3001/api/packages/track/your-tracking-id-here
 
 Runs every 30 seconds. Reads unprocessed rows from the `raw_updates` staging table and applies the status updates to the packages table.
 
-This processor is what keeps the customer-facing tracking status in sync with the Courier Logistics Application.
-
 ```
 App 2 pushes bulk updates → raw_updates table (staging)
                                     ↓
@@ -251,8 +260,6 @@ App 2 pushes bulk updates → raw_updates table (staging)
 ---
 
 ## Integration with Courier Logistics Application
-
-This app integrates with the Courier Logistics Application in two ways:
 
 **Webhook (outbound)**
 When a new package is created, this app fires a webhook to App 2 at `POST /webhook/package`. This is non-blocking — if App 2 is unavailable, the package is still created in App 1 and the webhook failure is logged.
@@ -287,6 +294,17 @@ App 2 pushes bulk status updates to `POST /api/raw-updates` every 6 hours (1 min
 
 ---
 
+## Docker Networking
+
+This app creates a shared Docker network called `logistics_network` that the Courier Logistics Application joins. The network is created automatically — both apps can start in any order.
+
+| Container      | Hostname on network  | Port              |
+| -------------- | -------------------- | ----------------- |
+| App 1 backend  | `collection_backend` | `3001`            |
+| App 1 postgres | `collection_db`      | `5432` (internal) |
+
+---
+
 ## Project Structure
 
 ```
@@ -314,7 +332,8 @@ collection-app/
 │   ├── scripts/
 │   │   └── start.sh               Docker startup script
 │   ├── Dockerfile
-│   └── .dockerignore
+│   ├── .dockerignore
+│   └── .env.example
 │
 ├── frontend/
 │   ├── app/
@@ -332,7 +351,12 @@ collection-app/
 │   │   │   └── page.tsx           Public tracking page
 │   │   └── page.tsx               Home page
 │   ├── Dockerfile
-│   └── .dockerignore
+│   ├── .dockerignore
+│   └── .env.example
+│
+├── .devcontainer/
+│   ├── devcontainer.json          VS Code dev container config
+│   └── docker-compose.yml         Dev container services
 │
 └── docker-compose.yml
 ```
