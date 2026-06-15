@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from "express";
 import prisma from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
+import { ErrorCodes } from "../constants/errorCodes";
+import { successResponse } from "../types/api";
 
 export const receiveRawUpdates = async (
   req: Request,
@@ -11,7 +13,7 @@ export const receiveRawUpdates = async (
     const { updates } = req.body;
 
     if (!updates || !Array.isArray(updates) || updates.length === 0) {
-      throw new AppError("updates must be a non-empty array", 400);
+      throw new AppError(ErrorCodes.VALIDATION_ERROR, 400);
     }
 
     // Save the entire payload as one raw update record
@@ -26,10 +28,14 @@ export const receiveRawUpdates = async (
       `[RawUpdates] Received ${updates.length} updates, saved as ${rawUpdate.id}`,
     );
 
-    res.status(201).json({
-      message: `Received ${updates.length} updates`,
-      rawUpdateId: rawUpdate.id,
-    });
+    res
+      .status(201)
+      .json(
+        successResponse(
+          { rawUpdateId: rawUpdate.id, count: updates.length },
+          `${updates.length} status update${updates.length === 1 ? "" : "s"} received and queued for processing.`,
+        ),
+      );
   } catch (error) {
     next(error);
   }

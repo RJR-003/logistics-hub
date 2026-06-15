@@ -5,6 +5,17 @@ const API_URL =
     ? process.env.API_URL || "http://localhost:3001"
     : process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
+type ApiError = {
+  code: string;
+  details?: string;
+};
+
+type ApiResponse<T> = {
+  error: ApiError | null;
+  message: string;
+  data: T | null;
+};
+
 // Types — mirroring my Prisma models
 export type Sale = {
   id: string;
@@ -42,40 +53,41 @@ export type CreatePackageInput = {
   paymentMethod: string;
 };
 
+// Returns data on success, throws user-friendly message on error
+async function unwrap<T>(res: globalThis.Response): Promise<T> {
+  const json: ApiResponse<T> = await res.json();
+
+  if (!res.ok || json.error || !json.data) {
+    // Use the message from the server — it's already user-friendly
+    throw new Error(json.message || "Something went wrong. Please try again.");
+  }
+
+  return json.data;
+}
+
 // API functions
 export async function getDashboard(): Promise<DashboardData> {
   const res = await fetch(`${API_URL}/api/packages/dashboard`, {
     cache: "no-store", // always fetch fresh data
   });
-  if (!res.ok) throw new Error("Failed to fetch dashboard");
-  const data = await res.json();
-  return data.dashboard;
+  return unwrap<DashboardData>(res);
 }
 
 export async function createPackage(
   input: CreatePackageInput,
-): Promise<Package> {
+): Promise<{ trackingId: string; package: Package }> {
   const res = await fetch(`${API_URL}/api/packages`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   });
-  if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.error || "Failed to create package");
-  }
-  const data = await res.json();
-  return data.package;
+  return unwrap<{ trackingId: string; package: Package }>(res);
 }
 
 export async function trackPackage(trackingId: string): Promise<Package> {
   const res = await fetch(`${API_URL}/api/packages/track/${trackingId}`, {
     cache: "no-store",
   });
-  if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.error || "Package not found");
-  }
-  const data = await res.json();
+  const data = await unwrap<{ package: Package }>(res);
   return data.package;
 }

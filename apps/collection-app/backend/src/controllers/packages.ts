@@ -2,6 +2,40 @@ import { NextFunction, Request, Response } from "express";
 import prisma from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { PackageStatus } from "../constants/packageStatus";
+import { ErrorCodes } from "../constants/errorCodes";
+import { successResponse, errorResponse } from "../types/api";
+import {
+  PackageResponse,
+  CreatePackageResponse,
+  DashboardResponse,
+  SaleResponse,
+} from "../types/package";
+
+// Helper — converts Prisma package to our response type
+function toPackageResponse(pkg: any): PackageResponse {
+  return {
+    id: pkg.id,
+    trackingId: pkg.trackingId,
+    fromAddress: pkg.fromAddress,
+    toAddress: pkg.toAddress,
+    weight: pkg.weight,
+    status: pkg.status,
+    currentLocation: pkg.currentLocation,
+    delayReason: pkg.delayReason,
+    createdAt: pkg.createdAt.toISOString(),
+    updatedAt: pkg.updatedAt.toISOString(),
+    sale: pkg.sale ? toSaleResponse(pkg.sale) : null,
+  };
+}
+
+function toSaleResponse(sale: any): SaleResponse {
+  return {
+    id: sale.id,
+    amount: sale.amount,
+    paymentMethod: sale.paymentMethod,
+    createdAt: sale.createdAt.toISOString(),
+  };
+}
 
 const APP2_WEBHOOK_URL = process.env.APP2_URL
   ? `${process.env.APP2_URL}/webhook/package`
@@ -54,22 +88,22 @@ export const getDashboard = async (
       }),
     ]);
 
-    res.json({
-      dashboard: {
-        pending: {
-          count: pending.length,
-          packages: pending,
-        },
-        active: {
-          count: active.length,
-          packages: active,
-        },
-        delayed: {
-          count: delayed.length,
-          packages: delayed,
-        },
+    const dashboard: DashboardResponse = {
+      pending: {
+        count: pending.length,
+        packages: pending.map(toPackageResponse),
       },
-    });
+      active: {
+        count: active.length,
+        packages: active.map(toPackageResponse),
+      },
+      delayed: {
+        count: delayed.length,
+        packages: delayed.map(toPackageResponse),
+      },
+    };
+
+    res.json(successResponse(dashboard, "Dashboard loaded successfully."));
   } catch (error) {
     next(error);
   }
@@ -85,20 +119,20 @@ export const createPackage = async (
 
     // Validate package fields
     if (!fromAddress || !toAddress || !weight) {
-      throw new AppError("fromAddress, toAddress and weight are required", 400);
+      throw new AppError(ErrorCodes.INVALID_PACKAGE_DATA, 400);
     }
 
     if (typeof weight !== "number" || weight <= 0) {
-      throw new AppError("weight must be a positive number", 400);
+      throw new AppError(ErrorCodes.INVALID_PACKAGE_DATA, 400);
     }
 
     // Validate sale fields
     if (!amount || !paymentMethod) {
-      throw new AppError("amount and paymentMethod are required", 400);
+      throw new AppError(ErrorCodes.INVALID_SALE_DATA, 400);
     }
 
     if (typeof amount !== "number" || amount <= 0) {
-      throw new AppError("amount must be a positive number", 400);
+      throw new AppError(ErrorCodes.INVALID_SALE_DATA, 400);
     }
 
     // Create package AND sale in one transaction
@@ -136,11 +170,19 @@ export const createPackage = async (
       console.error("[Webhook] Failed to notify App 2:", err.message);
     });
 
-    res.status(201).json({
-      message: "Package created successfully",
+    const responseData: CreatePackageResponse = {
       trackingId: newPackage.trackingId,
-      package: newPackage,
-    });
+      package: toPackageResponse(newPackage),
+    };
+
+    res
+      .status(201)
+      .json(
+        successResponse(
+          responseData,
+          "Package created successfully. Please give the tracking ID to the customer.",
+        ),
+      );
   } catch (error) {
     next(error); //pass all errors to the centralized error handler
   }
@@ -157,7 +199,12 @@ export const getAllPackages = async (
       include: { sale: true },
     });
 
-    res.json({ packages });
+    res.json(
+      successResponse(
+        { packages: packages.map(toPackageResponse) },
+        `${packages.length} package${packages.length === 1 ? "" : "s"} found.`,
+      ),
+    );
   } catch (error) {
     next(error);
   }
@@ -177,10 +224,15 @@ export const getPackageByTrackingId = async (
     });
 
     if (!pkg) {
-      throw new AppError("Package not found", 404);
+      throw new AppError(ErrorCodes.PACKAGE_NOT_FOUND, 404);
     }
 
-    res.json({ package: pkg });
+    res.json(
+      successResponse(
+        { package: toPackageResponse(pkg) },
+        "Package details retrieved successfully.",
+      ),
+    );
   } catch (error) {
     next(error);
   }
