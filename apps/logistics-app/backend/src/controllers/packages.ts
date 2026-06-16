@@ -2,8 +2,52 @@ import { Request, Response, NextFunction } from "express";
 import prisma from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { PackageStatus } from "../constants/packageStatus";
+import { ErrorCodes } from "../constants/errorCodes";
+import { successResponse } from "../types/api";
+import { PackageResponse } from "../types/logistics";
 
-// Assign a package to a bag
+function toPackageResponse(pkg: any): PackageResponse {
+  return {
+    id: pkg.id,
+    trackingId: pkg.trackingId,
+    fromAddress: pkg.fromAddress,
+    toAddress: pkg.toAddress,
+    weight: pkg.weight,
+    status: pkg.status,
+    currentLocation: pkg.currentLocation,
+    bagId: pkg.bagId,
+    regionId: pkg.regionId,
+    createdAt: pkg.createdAt.toISOString(),
+    updatedAt: pkg.updatedAt.toISOString(),
+    bag: pkg.bag
+      ? {
+          id: pkg.bag.id,
+          code: pkg.bag.code,
+          direction: pkg.bag.direction,
+          status: pkg.bag.status,
+          truckId: pkg.bag.truckId,
+          createdAt: pkg.bag.createdAt.toISOString(),
+          updatedAt: pkg.bag.updatedAt.toISOString(),
+        }
+      : null,
+    region: pkg.region
+      ? {
+          id: pkg.region.id,
+          code: pkg.region.code,
+          name: pkg.region.name,
+          createdAt: pkg.region.createdAt.toISOString(),
+        }
+      : null,
+    statusUpdates: pkg.statusUpdates?.map((s: any) => ({
+      id: s.id,
+      status: s.status,
+      location: s.location,
+      note: s.note,
+      createdAt: s.createdAt.toISOString(),
+    })),
+  };
+}
+
 export const assignToBag = async (
   req: Request,
   res: Response,
@@ -13,22 +57,22 @@ export const assignToBag = async (
     const { packageId, bagId } = req.body;
 
     if (!packageId || !bagId) {
-      throw new AppError("packageId and bagId are required", 400);
+      throw new AppError(ErrorCodes.INVALID_PACKAGE_DATA, 400);
     }
 
     const pkg = await prisma.package.findUnique({
       where: { id: packageId },
     });
 
-    if (!pkg) throw new AppError("Package not found", 404);
+    if (!pkg) throw new AppError(ErrorCodes.PACKAGE_NOT_FOUND, 404);
+    if (pkg.bagId) throw new AppError(ErrorCodes.PACKAGE_ALREADY_BAGGED, 400);
 
     const bag = await prisma.bag.findUnique({
       where: { id: bagId },
     });
 
-    if (!bag) throw new AppError("Bag not found", 404);
+    if (!bag) throw new AppError(ErrorCodes.BAG_NOT_FOUND, 404);
 
-    // Update package — assign to bag and update status
     const updated = await prisma.package.update({
       where: { id: packageId },
       data: {
@@ -38,7 +82,6 @@ export const assignToBag = async (
       },
     });
 
-    // Log the status change
     await prisma.statusUpdate.create({
       data: {
         packageId,
@@ -48,16 +91,17 @@ export const assignToBag = async (
       },
     });
 
-    res.json({
-      message: "Package assigned to bag",
-      package: updated,
-    });
+    res.json(
+      successResponse(
+        { package: toPackageResponse(updated) },
+        `Package assigned to bag ${bag.code} successfully.`,
+      ),
+    );
   } catch (error) {
     next(error);
   }
 };
 
-// Update package status for outgoing packages
 export const updateOutgoingStatus = async (
   req: Request,
   res: Response,
@@ -67,14 +111,14 @@ export const updateOutgoingStatus = async (
     const { packageId, status, location, note } = req.body;
 
     if (!packageId || !status) {
-      throw new AppError("packageId and status are required", 400);
+      throw new AppError(ErrorCodes.INVALID_PACKAGE_DATA, 400);
     }
 
     const pkg = await prisma.package.findUnique({
       where: { id: packageId },
     });
 
-    if (!pkg) throw new AppError("Package not found", 404);
+    if (!pkg) throw new AppError(ErrorCodes.PACKAGE_NOT_FOUND, 404);
 
     const updated = await prisma.package.update({
       where: { id: packageId },
@@ -84,7 +128,6 @@ export const updateOutgoingStatus = async (
       },
     });
 
-    // Log every status change
     await prisma.statusUpdate.create({
       data: {
         packageId,
@@ -94,16 +137,17 @@ export const updateOutgoingStatus = async (
       },
     });
 
-    res.json({
-      message: "Package status updated",
-      package: updated,
-    });
+    res.json(
+      successResponse(
+        { package: toPackageResponse(updated) },
+        "Package status updated successfully.",
+      ),
+    );
   } catch (error) {
     next(error);
   }
 };
 
-// Get all packages
 export const getAllPackages = async (
   req: Request,
   res: Response,
@@ -117,12 +161,17 @@ export const getAllPackages = async (
         region: true,
         statusUpdates: {
           orderBy: { createdAt: "desc" },
-          take: 1, // only the latest status update
+          take: 1,
         },
       },
     });
 
-    res.json({ packages });
+    res.json(
+      successResponse(
+        { packages: packages.map(toPackageResponse) },
+        `${packages.length} package${packages.length === 1 ? "" : "s"} found.`,
+      ),
+    );
   } catch (error) {
     next(error);
   }
@@ -136,19 +185,16 @@ export const markForLocalDelivery = async (
   try {
     const { packageId } = req.body;
 
-    if (!packageId) throw new AppError("packageId is required", 400);
+    if (!packageId) throw new AppError(ErrorCodes.INVALID_PACKAGE_DATA, 400);
 
     const pkg = await prisma.package.findUnique({
       where: { id: packageId },
     });
 
-    if (!pkg) throw new AppError("Package not found", 404);
+    if (!pkg) throw new AppError(ErrorCodes.PACKAGE_NOT_FOUND, 404);
 
     if (pkg.status !== PackageStatus.ARRIVED) {
-      throw new AppError(
-        "Package must be in ARRIVED status to schedule for delivery",
-        400,
-      );
+      throw new AppError(ErrorCodes.PACKAGE_NOT_ARRIVED, 400);
     }
 
     const updated = await prisma.package.update({
@@ -165,10 +211,12 @@ export const markForLocalDelivery = async (
       },
     });
 
-    res.json({
-      message: "Package scheduled for local delivery",
-      package: updated,
-    });
+    res.json(
+      successResponse(
+        { package: toPackageResponse(updated) },
+        "Package has been scheduled for local delivery.",
+      ),
+    );
   } catch (error) {
     next(error);
   }

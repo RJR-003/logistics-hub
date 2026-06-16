@@ -40,24 +40,31 @@ export async function runRawUpdateProcessor() {
 
         // Process each update in the batch
         for (const update of updates) {
+          console.log(
+            `[Processor] Processing update for trackingId: ${update.trackingId}, status: ${update.status}`,
+          );
           // Find the package in App 1's database by tracking ID
           const pkg = await prisma.package.findUnique({
             where: { trackingId: update.trackingId },
           });
-
+          console.log(
+            `[Processor] Found package. Current status: ${pkg!.status}, incoming status: ${update.status}`,
+          );
           if (!pkg) {
             console.warn(`[Processor] Package not found: ${update.trackingId}`);
             continue; // skip this one, process the rest
           }
 
-          // Only update if App 2's update is newer than what we have
-          const app2UpdatedAt = new Date(update.updatedAt);
-          if (app2UpdatedAt <= pkg.updatedAt) {
+          if (pkg.status === update.status) {
             console.log(
               `[Processor] Skipping ${update.trackingId} — already up to date`,
             );
             continue;
           }
+
+          console.log(
+            `[Processor] Updating package ${update.trackingId} from ${pkg.status} to ${update.status}`,
+          );
 
           // Update the package in App 1's database
           await prisma.package.update({

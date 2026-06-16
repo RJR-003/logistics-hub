@@ -3,12 +3,30 @@ const API_URL =
     ? process.env.API_URL || "http://localhost:3002"
     : process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
 
-// Types
+type ApiError = {
+  code: string;
+  details?: string;
+};
+
+type ApiResponse<T> = {
+  error: ApiError | null;
+  message: string;
+  data: T | null;
+};
+
+async function unwrap<T>(res: globalThis.Response): Promise<T> {
+  const json: ApiResponse<T> = await res.json();
+  if (!res.ok || json.error || !json.data) {
+    throw new Error(json.message || "Something went wrong. Please try again.");
+  }
+  return json.data;
+}
 
 export type Region = {
   id: string;
   code: string;
   name: string;
+  createdAt: string;
 };
 
 export type Package = {
@@ -48,6 +66,8 @@ export type Truck = {
   actualDeparture: string | null;
   status: string;
   createdAt: string;
+  updatedAt: string;
+  region?: Region | null;
   bags?: Bag[];
   delay?: Delay | null;
 };
@@ -71,89 +91,73 @@ export type DashboardData = {
 
 export async function getDashboard(): Promise<DashboardData> {
   const res = await fetch(`${API_URL}/api/dashboard`, { cache: "no-store" });
-  if (!res.ok) throw new Error("Failed to fetch dashboard");
-  const data = await res.json();
-  return data.dashboard;
+  return unwrap<DashboardData>(res);
+  // return unwrap<DashboardData>(res);
 }
 
 export async function getAllPackages(): Promise<Package[]> {
   const res = await fetch(`${API_URL}/api/packages`, { cache: "no-store" });
-  if (!res.ok) throw new Error("Failed to fetch packages");
-  const data = await res.json();
+  const data = await unwrap<{ packages: Package[] }>(res);
   return data.packages;
 }
 
 export async function getAllBags(): Promise<Bag[]> {
   const res = await fetch(`${API_URL}/api/bags`, { cache: "no-store" });
-  if (!res.ok) throw new Error("Failed to fetch bags");
-  const data = await res.json();
+  const data = await unwrap<{ bags: Bag[] }>(res);
   return data.bags;
 }
 
 export async function getAllTrucks(): Promise<Truck[]> {
   const res = await fetch(`${API_URL}/api/trucks`, { cache: "no-store" });
-  if (!res.ok) throw new Error("Failed to fetch trucks");
-  const data = await res.json();
+  const data = await unwrap<{ trucks: Truck[] }>(res);
   return data.trucks;
 }
 
 export async function getAllRegions(): Promise<Region[]> {
   const res = await fetch(`${API_URL}/api/regions`, { cache: "no-store" });
-  if (!res.ok) throw new Error("Failed to fetch regions");
-  const data = await res.json();
+  const data = await unwrap<{ regions: Region[] }>(res);
   return data.regions;
 }
 
-export async function createBag(data: {
+export async function createBag(input: {
   code: string;
   direction: string;
 }): Promise<Bag> {
   const res = await fetch(`${API_URL}/api/bags`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
+    body: JSON.stringify(input),
   });
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || "Failed to create bag");
-  }
-  const result = await res.json();
-  return result.bag;
+  const data = await unwrap<{ bag: Bag }>(res);
+  return data.bag;
 }
 
-export async function assignToBag(data: {
+export async function assignToBag(input: {
   packageId: string;
   bagId: string;
 }): Promise<Package> {
   const res = await fetch(`${API_URL}/api/packages/assign-bag`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
+    body: JSON.stringify(input),
   });
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || "Failed to assign package to bag");
-  }
-  const result = await res.json();
-  return result.package;
+  const data = await unwrap<{ package: Package }>(res);
+  return data.package;
 }
 
-export async function delayBag(data: {
+export async function delayBag(input: {
   bagId: string;
   reason: string;
 }): Promise<void> {
   const res = await fetch(`${API_URL}/api/bags/delay`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
+    body: JSON.stringify(input),
   });
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || "Failed to delay bag");
-  }
+  await unwrap<{ affectedPackages: number }>(res);
 }
 
-export async function createTruck(data: {
+export async function createTruck(input: {
   code: string;
   regionId: string;
   scheduledDeparture: string;
@@ -161,34 +165,25 @@ export async function createTruck(data: {
   const res = await fetch(`${API_URL}/api/trucks`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
+    body: JSON.stringify(input),
   });
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || "Failed to create truck");
-  }
-  const result = await res.json();
-  return result.truck;
+  const data = await unwrap<{ truck: Truck }>(res);
+  return data.truck;
 }
 
-export async function loadBagOntoTruck(data: {
+export async function loadBagOntoTruck(input: {
   bagId: string;
   truckId: string;
-}): Promise<Bag> {
+}): Promise<void> {
   const res = await fetch(`${API_URL}/api/trucks/load-bag`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
+    body: JSON.stringify(input),
   });
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || "Failed to load bag onto truck");
-  }
-  const result = await res.json();
-  return result.bag;
+  await unwrap<{ bagCode: string; truckCode: string }>(res);
 }
 
-export async function updatePackageStatus(data: {
+export async function updatePackageStatus(input: {
   packageId: string;
   status: string;
   location?: string;
@@ -197,14 +192,10 @@ export async function updatePackageStatus(data: {
   const res = await fetch(`${API_URL}/api/packages/status`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
+    body: JSON.stringify(input),
   });
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || "Failed to update status");
-  }
-  const result = await res.json();
-  return result.package;
+  const data = await unwrap<{ package: Package }>(res);
+  return data.package;
 }
 
 export async function departTruck(truckId: string): Promise<void> {
@@ -213,40 +204,31 @@ export async function departTruck(truckId: string): Promise<void> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ truckId }),
   });
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || "Failed to depart truck");
-  }
+  await unwrap<{ truckCode: string }>(res);
 }
 
-export async function arriveTruck(data: {
+export async function arriveTruck(input: {
   truckId: string;
   regionCode: string;
 }): Promise<void> {
   const res = await fetch(`${API_URL}/api/trucks/arrive`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
+    body: JSON.stringify(input),
   });
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || "Failed to arrive truck");
-  }
+  await unwrap<{ truckCode: string }>(res);
 }
 
-export async function delayTruck(data: {
+export async function delayTruck(input: {
   truckId: string;
   reason: string;
 }): Promise<void> {
   const res = await fetch(`${API_URL}/api/trucks/delay`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
+    body: JSON.stringify(input),
   });
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || "Failed to delay truck");
-  }
+  await unwrap<{ truckCode: string }>(res);
 }
 
 export async function markForLocalDelivery(
@@ -257,10 +239,6 @@ export async function markForLocalDelivery(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ packageId }),
   });
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || "Failed to mark for local delivery");
-  }
-  const result = await res.json();
-  return result.package;
+  const data = await unwrap<{ package: Package }>(res);
+  return data.package;
 }

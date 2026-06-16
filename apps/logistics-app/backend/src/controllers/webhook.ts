@@ -2,6 +2,25 @@ import { Request, Response, NextFunction } from "express";
 import prisma from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { PackageStatus } from "../constants/packageStatus";
+import { ErrorCodes } from "../constants/errorCodes";
+import { successResponse } from "../types/api";
+import { PackageResponse } from "../types/logistics";
+
+function toPackageResponse(pkg: any): PackageResponse {
+  return {
+    id: pkg.id,
+    trackingId: pkg.trackingId,
+    fromAddress: pkg.fromAddress,
+    toAddress: pkg.toAddress,
+    weight: pkg.weight,
+    status: pkg.status,
+    currentLocation: pkg.currentLocation,
+    bagId: pkg.bagId,
+    regionId: pkg.regionId,
+    createdAt: pkg.createdAt.toISOString(),
+    updatedAt: pkg.updatedAt.toISOString(),
+  };
+}
 
 export const receivePackage = async (
   req: Request,
@@ -12,26 +31,25 @@ export const receivePackage = async (
     const { trackingId, fromAddress, toAddress, weight } = req.body;
 
     if (!trackingId || !fromAddress || !toAddress || !weight) {
-      throw new AppError(
-        "trackingId, fromAddress, toAddress and weight are required",
-        400,
-      );
+      throw new AppError(ErrorCodes.INVALID_PACKAGE_DATA, 400);
     }
 
-    // Check if package already exists — webhook may fire twice
     const existing = await prisma.package.findUnique({
       where: { trackingId },
     });
 
     if (existing) {
-      res.status(200).json({
-        message: "Package already exists",
-        package: existing,
-      });
+      res
+        .status(200)
+        .json(
+          successResponse(
+            { package: toPackageResponse(existing) },
+            "Package already exists in the system.",
+          ),
+        );
       return;
     }
 
-    // Create package with initial status
     const newPackage = await prisma.package.create({
       data: {
         trackingId,
@@ -42,7 +60,6 @@ export const receivePackage = async (
       },
     });
 
-    // Create first status update in audit log
     await prisma.statusUpdate.create({
       data: {
         packageId: newPackage.id,
@@ -51,10 +68,14 @@ export const receivePackage = async (
       },
     });
 
-    res.status(201).json({
-      message: "Package received successfully",
-      package: newPackage,
-    });
+    res
+      .status(201)
+      .json(
+        successResponse(
+          { package: toPackageResponse(newPackage) },
+          "Package received and registered successfully.",
+        ),
+      );
   } catch (error) {
     next(error);
   }

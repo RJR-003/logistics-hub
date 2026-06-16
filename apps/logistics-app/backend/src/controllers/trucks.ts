@@ -6,6 +6,59 @@ import {
   BagStatus,
   PackageStatus,
 } from "../constants/packageStatus";
+import { ErrorCodes } from "../constants/errorCodes";
+import { successResponse } from "../types/api";
+import { TruckResponse } from "../types/logistics";
+
+function toTruckResponse(truck: any): TruckResponse {
+  return {
+    id: truck.id,
+    code: truck.code,
+    regionId: truck.regionId,
+    scheduledDeparture: truck.scheduledDeparture.toISOString(),
+    actualDeparture: truck.actualDeparture?.toISOString() || null,
+    status: truck.status,
+    createdAt: truck.createdAt.toISOString(),
+    updatedAt: truck.updatedAt.toISOString(),
+    region: truck.region
+      ? {
+          id: truck.region.id,
+          code: truck.region.code,
+          name: truck.region.name,
+          createdAt: truck.region.createdAt.toISOString(),
+        }
+      : null,
+    bags: truck.bags?.map((bag: any) => ({
+      id: bag.id,
+      code: bag.code,
+      direction: bag.direction,
+      status: bag.status,
+      truckId: bag.truckId,
+      createdAt: bag.createdAt.toISOString(),
+      updatedAt: bag.updatedAt.toISOString(),
+      packages: bag.packages?.map((pkg: any) => ({
+        id: pkg.id,
+        trackingId: pkg.trackingId,
+        fromAddress: pkg.fromAddress,
+        toAddress: pkg.toAddress,
+        weight: pkg.weight,
+        status: pkg.status,
+        currentLocation: pkg.currentLocation,
+        bagId: pkg.bagId,
+        regionId: pkg.regionId,
+        createdAt: pkg.createdAt.toISOString(),
+        updatedAt: pkg.updatedAt.toISOString(),
+      })),
+    })),
+    delay: truck.delay
+      ? {
+          id: truck.delay.id,
+          reason: truck.delay.reason,
+          createdAt: truck.delay.createdAt.toISOString(),
+        }
+      : null,
+  };
+}
 
 export const createTruck = async (
   req: Request,
@@ -16,10 +69,7 @@ export const createTruck = async (
     const { code, regionId, scheduledDeparture } = req.body;
 
     if (!code || !regionId || !scheduledDeparture) {
-      throw new AppError(
-        "code, regionId and scheduledDeparture are required",
-        400,
-      );
+      throw new AppError(ErrorCodes.INVALID_TRUCK_DATA, 400);
     }
 
     const truck = await prisma.truck.create({
@@ -32,7 +82,14 @@ export const createTruck = async (
       include: { region: true },
     });
 
-    res.status(201).json({ message: "Truck created", truck });
+    res
+      .status(201)
+      .json(
+        successResponse(
+          { truck: toTruckResponse(truck) },
+          `Truck ${code} created and scheduled successfully.`,
+        ),
+      );
   } catch (error) {
     next(error);
   }
@@ -48,13 +105,17 @@ export const getAllTrucks = async (
       orderBy: { createdAt: "desc" },
       include: {
         region: true,
-        bags: {
-          include: { packages: true },
-        },
+        bags: { include: { packages: true } },
         delay: true,
       },
     });
-    res.json({ trucks });
+
+    res.json(
+      successResponse(
+        { trucks: trucks.map(toTruckResponse) },
+        `${trucks.length} truck${trucks.length === 1 ? "" : "s"} found.`,
+      ),
+    );
   } catch (error) {
     next(error);
   }
@@ -69,7 +130,7 @@ export const loadBagOntoTruck = async (
     const { bagId, truckId } = req.body;
 
     if (!bagId || !truckId) {
-      throw new AppError("bagId and truckId are required", 400);
+      throw new AppError(ErrorCodes.INVALID_TRUCK_DATA, 400);
     }
 
     const bag = await prisma.bag.findUnique({
@@ -77,32 +138,29 @@ export const loadBagOntoTruck = async (
       include: { packages: true },
     });
 
-    if (!bag) throw new AppError("Bag not found", 404);
+    if (!bag) throw new AppError(ErrorCodes.BAG_NOT_FOUND, 404);
 
     const truck = await prisma.truck.findUnique({
       where: { id: truckId },
     });
 
-    if (!truck) throw new AppError("Truck not found", 404);
+    if (!truck) throw new AppError(ErrorCodes.TRUCK_NOT_FOUND, 404);
 
-    // Use transaction — update bag, all its packages, and truck status together
+    if (truck.status === TruckStatus.DEPARTED) {
+      throw new AppError(ErrorCodes.TRUCK_ALREADY_DEPARTED, 400);
+    }
+
     await prisma.$transaction(async (tx) => {
-      // Assign bag to truck
       await tx.bag.update({
         where: { id: bagId },
-        data: {
-          truckId,
-          status: BagStatus.LOADED,
-        },
+        data: { truckId, status: BagStatus.LOADED },
       });
 
-      // Update truck status to loading
       await tx.truck.update({
         where: { id: truckId },
         data: { status: TruckStatus.LOADING },
       });
 
-      // Update all packages in the bag
       for (const pkg of bag.packages) {
         await tx.package.update({
           where: { id: pkg.id },
@@ -119,12 +177,148 @@ export const loadBagOntoTruck = async (
       }
     });
 
-    const updatedBag = await prisma.bag.findUnique({
-      where: { id: bagId },
-      include: { packages: true, truck: true },
+    res.json(
+      successResponse(
+        { bagCode: bag.code, truckCode: truck.code },
+        `Bag ${bag.code} loaded onto truck ${truck.code} successfully.`,
+      ),
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const departTruck = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { truckId } = req.body;
+
+    if (!truckId) throw new AppError(ErrorCodes.INVALID_TRUCK_DATA, 400);
+
+    const truck = await prisma.truck.findUnique({
+      where: { id: truckId },
+      include: { bags: { include: { packages: true } } },
     });
 
-    res.json({ message: "Bag loaded onto truck", bag: updatedBag });
+    if (!truck) throw new AppError(ErrorCodes.TRUCK_NOT_FOUND, 404);
+
+    if (truck.status === TruckStatus.DEPARTED) {
+      throw new AppError(ErrorCodes.TRUCK_ALREADY_DEPARTED, 400);
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.truck.update({
+        where: { id: truckId },
+        data: {
+          status: TruckStatus.DEPARTED,
+          actualDeparture: new Date(),
+        },
+      });
+
+      for (const bag of truck.bags) {
+        await tx.bag.update({
+          where: { id: bag.id },
+          data: { status: BagStatus.IN_TRANSIT },
+        });
+
+        for (const pkg of bag.packages) {
+          await tx.statusUpdate.create({
+            data: {
+              packageId: pkg.id,
+              status: PackageStatus.EN_ROUTE,
+              note: `Truck ${truck.code} departed`,
+            },
+          });
+        }
+      }
+    });
+
+    const totalPackages = truck.bags.reduce(
+      (sum, bag) => sum + bag.packages.length,
+      0,
+    );
+
+    res.json(
+      successResponse(
+        { truckCode: truck.code, totalPackages },
+        `Truck ${truck.code} has departed with ${totalPackages} package${totalPackages === 1 ? "" : "s"}.`,
+      ),
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const arriveTruck = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { truckId, regionCode } = req.body;
+
+    if (!truckId || !regionCode) {
+      throw new AppError(ErrorCodes.INVALID_TRUCK_DATA, 400);
+    }
+
+    const truck = await prisma.truck.findUnique({
+      where: { id: truckId },
+      include: { bags: { include: { packages: true } } },
+    });
+
+    if (!truck) throw new AppError(ErrorCodes.TRUCK_NOT_FOUND, 404);
+
+    if (truck.status !== TruckStatus.DEPARTED) {
+      throw new AppError(ErrorCodes.TRUCK_NOT_DEPARTED, 400);
+    }
+
+    let totalPackages = 0;
+
+    await prisma.$transaction(async (tx) => {
+      await tx.truck.update({
+        where: { id: truckId },
+        data: { status: TruckStatus.ARRIVED },
+      });
+
+      for (const bag of truck.bags) {
+        await tx.bag.update({
+          where: { id: bag.id },
+          data: { status: BagStatus.ARRIVED },
+        });
+
+        for (const pkg of bag.packages) {
+          await tx.package.update({
+            where: { id: pkg.id },
+            data: {
+              status: PackageStatus.ARRIVED,
+              currentLocation: regionCode,
+              bagId: null,
+            },
+          });
+
+          await tx.statusUpdate.create({
+            data: {
+              packageId: pkg.id,
+              status: PackageStatus.ARRIVED,
+              location: regionCode,
+              note: `Arrived at ${regionCode} hub`,
+            },
+          });
+
+          totalPackages++;
+        }
+      }
+    });
+
+    res.json(
+      successResponse(
+        { truckCode: truck.code, regionCode, totalPackages },
+        `Truck ${truck.code} arrived at ${regionCode}. ${totalPackages} package${totalPackages === 1 ? "" : "s"} ready for processing.`,
+      ),
+    );
   } catch (error) {
     next(error);
   }
@@ -139,33 +333,30 @@ export const delayTruck = async (
     const { truckId, reason } = req.body;
 
     if (!truckId || !reason) {
-      throw new AppError("truckId and reason are required", 400);
+      throw new AppError(ErrorCodes.INVALID_TRUCK_DATA, 400);
     }
 
     const truck = await prisma.truck.findUnique({
       where: { id: truckId },
       include: {
-        bags: {
-          include: { packages: true },
-        },
+        bags: { include: { packages: true } },
+        delay: true,
       },
     });
 
-    if (!truck) throw new AppError("Truck not found", 404);
+    if (!truck) throw new AppError(ErrorCodes.TRUCK_NOT_FOUND, 404);
+    if (truck.delay) throw new AppError(ErrorCodes.TRUCK_ALREADY_DELAYED, 400);
+
+    let totalPackages = 0;
 
     await prisma.$transaction(async (tx) => {
-      // Create delay record
-      await tx.delay.create({
-        data: { truckId, reason },
-      });
+      await tx.delay.create({ data: { truckId, reason } });
 
-      // Mark truck as delayed
       await tx.truck.update({
         where: { id: truckId },
         data: { status: TruckStatus.DELAYED },
       });
 
-      // Mark all bags and packages as delayed
       for (const bag of truck.bags) {
         await tx.bag.update({
           where: { id: bag.id },
@@ -185,142 +376,18 @@ export const delayTruck = async (
               note: `Truck delayed: ${reason}`,
             },
           });
+
+          totalPackages++;
         }
       }
     });
 
-    res.json({ message: "Truck marked as delayed", reason });
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const departTruck = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
-  try {
-    const { truckId } = req.body;
-
-    if (!truckId) throw new AppError("truckId is required", 400);
-
-    const truck = await prisma.truck.findUnique({
-      where: { id: truckId },
-      include: {
-        bags: { include: { packages: true } },
-      },
-    });
-
-    if (!truck) throw new AppError("Truck not found", 404);
-    if (truck.status === "DEPARTED") {
-      throw new AppError("Truck has already departed", 400);
-    }
-
-    await prisma.$transaction(async (tx) => {
-      // Mark truck as departed
-      await tx.truck.update({
-        where: { id: truckId },
-        data: {
-          status: TruckStatus.DEPARTED,
-          actualDeparture: new Date(),
-        },
-      });
-
-      // Update all bags to IN_TRANSIT
-      for (const bag of truck.bags) {
-        await tx.bag.update({
-          where: { id: bag.id },
-          data: { status: BagStatus.IN_TRANSIT },
-        });
-
-        // Log status update for each package
-        for (const pkg of bag.packages) {
-          await tx.statusUpdate.create({
-            data: {
-              packageId: pkg.id,
-              status: PackageStatus.EN_ROUTE,
-              note: `Truck ${truck.code} departed`,
-            },
-          });
-        }
-      }
-    });
-
-    res.json({ message: `Truck ${truck.code} marked as departed` });
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const arriveTruck = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
-  try {
-    const { truckId, regionCode } = req.body;
-
-    if (!truckId || !regionCode) {
-      throw new AppError("truckId and regionCode are required", 400);
-    }
-
-    const truck = await prisma.truck.findUnique({
-      where: { id: truckId },
-      include: {
-        bags: { include: { packages: true } },
-      },
-    });
-
-    if (!truck) throw new AppError("Truck not found", 404);
-    if (truck.status !== "DEPARTED") {
-      throw new AppError("Truck must be departed before arriving", 400);
-    }
-
-    await prisma.$transaction(async (tx) => {
-      // Mark truck as arrived
-      await tx.truck.update({
-        where: { id: truckId },
-        data: { status: TruckStatus.ARRIVED },
-      });
-
-      // Update all bags to ARRIVED
-      for (const bag of truck.bags) {
-        await tx.bag.update({
-          where: { id: bag.id },
-          data: { status: BagStatus.ARRIVED },
-        });
-
-        // Update all packages — arrived at new region
-        for (const pkg of bag.packages) {
-          await tx.package.update({
-            where: { id: pkg.id },
-            data: {
-              status: PackageStatus.ARRIVED,
-              currentLocation: regionCode,
-              bagId: null, // ← detach from bag, ready for re-bagging
-            },
-          });
-
-          await tx.statusUpdate.create({
-            data: {
-              packageId: pkg.id,
-              status: PackageStatus.ARRIVED,
-              location: regionCode,
-              note: `Arrived at ${regionCode} hub`,
-            },
-          });
-        }
-      }
-    });
-
-    res.json({
-      message: `Truck ${truck.code} arrived at ${regionCode}`,
-      packagesReady: truck.bags.reduce(
-        (sum, bag) => sum + bag.packages.length,
-        0,
+    res.json(
+      successResponse(
+        { truckCode: truck.code, totalPackages },
+        `Truck ${truck.code} marked as delayed. ${totalPackages} package${totalPackages === 1 ? "" : "s"} updated.`,
       ),
-    });
+    );
   } catch (error) {
     next(error);
   }
