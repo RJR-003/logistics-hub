@@ -3,7 +3,7 @@ import prisma from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { PackageStatus } from "../constants/packageStatus";
 import { ErrorCodes } from "../constants/errorCodes";
-import { successResponse, errorResponse } from "../types/api";
+import { successResponse } from "../types/api";
 import {
   PackageResponse,
   CreatePackageResponse,
@@ -22,9 +22,18 @@ function toPackageResponse(pkg: any): PackageResponse {
     status: pkg.status,
     currentLocation: pkg.currentLocation,
     delayReason: pkg.delayReason,
+    regionId: pkg.regionId,
     createdAt: pkg.createdAt.toISOString(),
     updatedAt: pkg.updatedAt.toISOString(),
     sale: pkg.sale ? toSaleResponse(pkg.sale) : null,
+    region: pkg.region
+      ? {
+          id: pkg.region.id,
+          code: pkg.region.code,
+          name: pkg.region.name,
+          createdAt: pkg.region.createdAt.toISOString(),
+        }
+      : null,
   };
 }
 
@@ -115,7 +124,8 @@ export const createPackage = async (
   next: NextFunction,
 ) => {
   try {
-    const { fromAddress, toAddress, weight, amount, paymentMethod } = req.body;
+    const { fromAddress, toAddress, weight, amount, paymentMethod, regionId } =
+      req.body;
 
     // Validate package fields
     if (!fromAddress || !toAddress || !weight) {
@@ -142,6 +152,7 @@ export const createPackage = async (
         fromAddress,
         toAddress,
         weight,
+        regionId: regionId || null,
         sale: {
           create: {
             amount,
@@ -151,6 +162,7 @@ export const createPackage = async (
       },
       include: {
         sale: true, // return the sale details in the response
+        region: true,
       },
     });
 
@@ -164,6 +176,7 @@ export const createPackage = async (
         fromAddress: newPackage.fromAddress,
         toAddress: newPackage.toAddress,
         weight: newPackage.weight,
+        regionCode: newPackage.region?.code || null,
       }),
     }).catch((err) => {
       // Log but never fail the main request because of this
@@ -196,7 +209,7 @@ export const getAllPackages = async (
   try {
     const packages = await prisma.package.findMany({
       orderBy: { createdAt: "desc" },
-      include: { sale: true },
+      include: { sale: true, region: true },
     });
 
     res.json(
@@ -220,7 +233,7 @@ export const getPackageByTrackingId = async (
 
     const pkg = await prisma.package.findUnique({
       where: { trackingId },
-      include: { sale: true },
+      include: { sale: true, region: true },
     });
 
     if (!pkg) {

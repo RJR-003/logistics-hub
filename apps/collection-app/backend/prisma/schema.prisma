@@ -13,18 +13,29 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Region {
+  id        String    @id @default(uuid())
+  code      String    @unique
+  name      String
+  createdAt DateTime  @default(now())
+
+  packages  Package[]
+}
+
 model Package {
-  id          String   @id @default(uuid())
-  trackingId  String   @unique @default(uuid())
-  fromAddress String
-  toAddress   String
-  weight      Float
-  status      String   @default("TO_BE_PICKED_UP")
+  id              String   @id @default(uuid())
+  trackingId      String   @unique @default(uuid())
+  fromAddress     String
+  toAddress       String
+  weight          Float
+  status          String   @default("TO_BE_PICKED_UP")
   currentLocation String? 
   delayReason     String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  sale        Sale?
+  regionId        String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  region          Region?   @relation(fields: [regionId], references: [id])
+  sale            Sale?
 }
 
 model Sale {

@@ -242,3 +242,33 @@ export async function markForLocalDelivery(
   const data = await unwrap<{ package: Package }>(res);
   return data.package;
 }
+
+export async function recoverTruck(truckId: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/trucks/recover`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ truckId }),
+  });
+  await unwrap<{ truckCode: string }>(res);
+}
+
+export async function transferBags(data: {
+  fromTruckId: string;
+  toTruckId: string;
+}): Promise<void> {
+  const res = await fetch(`${API_URL}/api/trucks/transfer-bags`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  await unwrap<{ totalBags: number }>(res);
+}
+
+export async function resetTruck(truckId: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/trucks/reset`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ truckId }),
+  });
+  await unwrap<{ truckCode: string }>(res);
+}

@@ -6,6 +6,7 @@ import packageRoutes from "./routes/packages";
 import { errorHandler } from "./middleware/errorHandler";
 import rawUpdateRoutes from "./routes/rawUpdates";
 import { runRawUpdateProcessor } from "./jobs/rawUpdateProcessor";
+import regionRoutes from "./routes/region";
 
 const app: Application = express();
 const PORT = process.env.PORT || 3001;
@@ -21,6 +22,7 @@ app.use(
 app.use(express.json());
 app.use("/api/packages", packageRoutes);
 app.use("/api/raw-updates", rawUpdateRoutes);
+app.use("/api/regions", regionRoutes);
 
 app.get("/health", async (req: Request, res: Response) => {
   try {

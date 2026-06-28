@@ -6,12 +6,17 @@ function PackageRow({ pkg }: { pkg: Package }) {
   return (
     <div className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
       <div className="space-y-1">
-        <p className="text-sm font-mono text-gray-600">
+        <p title={pkg.trackingId} className="text-sm font-mono text-gray-600">
           {pkg.trackingId.slice(0, 12)}...
         </p>
         <p className="text-xs text-gray-400">
           {pkg.fromAddress} → {pkg.toAddress}
         </p>
+        {pkg.region && (
+          <p className="text-xs text-blue-500">
+            Origin: {pkg.region.name} ({pkg.region.code})
+          </p>
+        )}
       </div>
       <div className="flex items-center gap-3">
         <span className="text-xs text-gray-400">{pkg.weight}kg</span>

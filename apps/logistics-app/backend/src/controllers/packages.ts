@@ -78,7 +78,6 @@ export const assignToBag = async (
       data: {
         bagId,
         status: PackageStatus.ADDED_TO_BAG,
-        currentLocation: bag.direction,
       },
     });
 
@@ -86,7 +85,7 @@ export const assignToBag = async (
       data: {
         packageId,
         status: PackageStatus.ADDED_TO_BAG,
-        location: bag.direction,
+        location: null,
         note: `Assigned to bag ${bag.code}`,
       },
     });

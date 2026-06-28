@@ -16,6 +16,13 @@ type ApiResponse<T> = {
   data: T | null;
 };
 
+export type Region = {
+  id: string;
+  code: string;
+  name: string;
+  createdAt: string;
+};
+
 // Types — mirroring my Prisma models
 export type Sale = {
   id: string;
@@ -37,6 +44,7 @@ export type Package = {
   createdAt: string;
   updatedAt: string;
   sale: Sale | null;
+  region: Region | null;
 };
 
 export type DashboardData = {
@@ -51,6 +59,7 @@ export type CreatePackageInput = {
   weight: number;
   amount: number;
   paymentMethod: string;
+  regionId?: string;
 };
 
 // Returns data on success, throws user-friendly message on error
@@ -90,4 +99,12 @@ export async function trackPackage(trackingId: string): Promise<Package> {
   });
   const data = await unwrap<{ package: Package }>(res);
   return data.package;
+}
+
+export async function getRegions(): Promise<Region[]> {
+  const res = await fetch(`${API_URL}/api/regions`, {
+    cache: "no-store",
+  });
+  const data = await unwrap<{ regions: Region[] }>(res);
+  return data.regions;
 }

@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createPackage } from "../../../libs/api";
+import { createPackage, getRegions, Region } from "../../../libs/api";
 
 export default function NewPackagePage() {
   const router = useRouter();
+  const [regions, setRegions] = useState<Region[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createdTrackingId, setCreatedTrackingId] = useState<string | null>(
@@ -18,7 +19,14 @@ export default function NewPackagePage() {
     weight: "",
     amount: "",
     paymentMethod: "CASH",
+    regionId: "",
   });
+
+  useEffect(() => {
+    getRegions()
+      .then(setRegions)
+      .catch(() => {});
+  }, []);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
@@ -38,6 +46,7 @@ export default function NewPackagePage() {
         weight: parseFloat(form.weight),
         amount: parseFloat(form.amount),
         paymentMethod: form.paymentMethod,
+        regionId: form.regionId || undefined,
       });
       setCreatedTrackingId(pkg.trackingId);
     } catch (err: unknown) {
@@ -77,6 +86,7 @@ export default function NewPackagePage() {
                   weight: "",
                   amount: "",
                   paymentMethod: "CASH",
+                  regionId: "",
                 });
               }}
               className="flex-1 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm hover:bg-gray-50 transition-colors"
@@ -169,6 +179,24 @@ export default function NewPackagePage() {
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="0.0"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Front Office Region
+                </label>
+                <select
+                  name="regionId"
+                  value={form.regionId}
+                  onChange={handleChange}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select region (optional)</option>
+                  {regions.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name} ({r.code})
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>

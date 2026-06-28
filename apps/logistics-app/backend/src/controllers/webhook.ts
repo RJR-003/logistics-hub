@@ -28,7 +28,7 @@ export const receivePackage = async (
   next: NextFunction,
 ) => {
   try {
-    const { trackingId, fromAddress, toAddress, weight } = req.body;
+    const { trackingId, fromAddress, toAddress, weight, regionCode } = req.body;
 
     if (!trackingId || !fromAddress || !toAddress || !weight) {
       throw new AppError(ErrorCodes.INVALID_PACKAGE_DATA, 400);
@@ -50,6 +50,14 @@ export const receivePackage = async (
       return;
     }
 
+    let regionId: string | null = null;
+    if (regionCode) {
+      const region = await prisma.region.findUnique({
+        where: { code: regionCode },
+      });
+      regionId = region?.id || null;
+    }
+
     const newPackage = await prisma.package.create({
       data: {
         trackingId,
@@ -57,6 +65,7 @@ export const receivePackage = async (
         toAddress,
         weight,
         status: PackageStatus.TO_BE_PICKED_UP,
+        regionId: regionId || null,
       },
     });
 

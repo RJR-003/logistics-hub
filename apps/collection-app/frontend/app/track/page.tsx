@@ -91,7 +91,10 @@ export default function TrackPage() {
           <div className="border-t border-gray-100 pt-4 space-y-3">
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">Tracking ID</span>
-              <span className="font-mono text-gray-900 text-xs">
+              <span
+                title={result.trackingId}
+                className="font-mono text-gray-900 text-xs"
+              >
                 {result.trackingId}
               </span>
             </div>
@@ -107,6 +110,17 @@ export default function TrackPage() {
               <span className="text-gray-500">Weight</span>
               <span className="text-gray-900">{result.weight} kg</span>
             </div>
+            {result.region && (
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Origin Region</span>
+                <span className="text-gray-900">
+                  {result.region.name}
+                  <span className="ml-1 text-xs text-gray-400">
+                    ({result.region.code})
+                  </span>
+                </span>
+              </div>
+            )}
             {result.currentLocation && (
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Current Location</span>

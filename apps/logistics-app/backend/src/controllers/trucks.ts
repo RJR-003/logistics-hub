@@ -392,3 +392,197 @@ export const delayTruck = async (
     next(error);
   }
 };
+
+export const recoverTruck = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { truckId } = req.body;
+
+    if (!truckId) throw new AppError(ErrorCodes.INVALID_TRUCK_DATA, 400);
+
+    const truck = await prisma.truck.findUnique({
+      where: { id: truckId },
+      include: {
+        bags: { include: { packages: true } },
+        delay: true,
+      },
+    });
+
+    if (!truck) throw new AppError(ErrorCodes.TRUCK_NOT_FOUND, 404);
+
+    if (truck.status !== TruckStatus.DELAYED) {
+      throw new AppError(ErrorCodes.INVALID_TRUCK_DATA, 400);
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // Remove the delay record
+      if (truck.delay) {
+        await tx.delay.delete({
+          where: { id: truck.delay.id },
+        });
+      }
+
+      // Restore truck to LOADING status
+      await tx.truck.update({
+        where: { id: truckId },
+        data: { status: TruckStatus.LOADING },
+      });
+
+      // Restore all bags and packages
+      for (const bag of truck.bags) {
+        await tx.bag.update({
+          where: { id: bag.id },
+          data: { status: BagStatus.LOADED },
+        });
+
+        for (const pkg of bag.packages) {
+          await tx.package.update({
+            where: { id: pkg.id },
+            data: { status: PackageStatus.EN_ROUTE },
+          });
+
+          await tx.statusUpdate.create({
+            data: {
+              packageId: pkg.id,
+              status: PackageStatus.EN_ROUTE,
+              note: `Truck ${truck.code} delay resolved — back on schedule`,
+            },
+          });
+        }
+      }
+    });
+
+    res.json(
+      successResponse(
+        { truckCode: truck.code },
+        `Truck ${truck.code} delay resolved. It is now ready to depart.`,
+      ),
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const transferBags = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { fromTruckId, toTruckId } = req.body;
+
+    if (!fromTruckId || !toTruckId) {
+      throw new AppError(ErrorCodes.INVALID_TRUCK_DATA, 400);
+    }
+
+    const fromTruck = await prisma.truck.findUnique({
+      where: { id: fromTruckId },
+      include: {
+        bags: { include: { packages: true } },
+      },
+    });
+
+    if (!fromTruck) throw new AppError(ErrorCodes.TRUCK_NOT_FOUND, 404);
+
+    const toTruck = await prisma.truck.findUnique({
+      where: { id: toTruckId },
+    });
+
+    if (!toTruck) throw new AppError(ErrorCodes.TRUCK_NOT_FOUND, 404);
+
+    if (toTruck.status === TruckStatus.DEPARTED) {
+      throw new AppError(ErrorCodes.TRUCK_ALREADY_DEPARTED, 400);
+    }
+
+    let totalBags = 0;
+    let totalPackages = 0;
+
+    await prisma.$transaction(async (tx) => {
+      for (const bag of fromTruck.bags) {
+        // Move bag to new truck
+        await tx.bag.update({
+          where: { id: bag.id },
+          data: {
+            truckId: toTruckId,
+            status: BagStatus.LOADED,
+          },
+        });
+
+        for (const pkg of bag.packages) {
+          await tx.statusUpdate.create({
+            data: {
+              packageId: pkg.id,
+              status: PackageStatus.EN_ROUTE,
+              note: `Transferred from delayed truck ${fromTruck.code} to truck ${toTruck.code}`,
+            },
+          });
+          totalPackages++;
+        }
+
+        totalBags++;
+      }
+
+      // Update new truck to LOADING
+      await tx.truck.update({
+        where: { id: toTruckId },
+        data: { status: TruckStatus.LOADING },
+      });
+    });
+
+    res.json(
+      successResponse(
+        {
+          fromTruck: fromTruck.code,
+          toTruck: toTruck.code,
+          totalBags,
+          totalPackages,
+        },
+        `${totalBags} bag${totalBags === 1 ? "" : "s"} and ${totalPackages} package${totalPackages === 1 ? "" : "s"} transferred to truck ${toTruck.code}.`,
+      ),
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const resetTruck = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { truckId } = req.body;
+
+    if (!truckId) throw new AppError(ErrorCodes.INVALID_TRUCK_DATA, 400);
+
+    const truck = await prisma.truck.findUnique({
+      where: { id: truckId },
+    });
+
+    if (!truck) throw new AppError(ErrorCodes.TRUCK_NOT_FOUND, 404);
+
+    if (truck.status !== TruckStatus.ARRIVED) {
+      throw new AppError(ErrorCodes.INVALID_TRUCK_DATA, 400);
+    }
+
+    await prisma.truck.update({
+      where: { id: truckId },
+      data: {
+        status: TruckStatus.SCHEDULED,
+        actualDeparture: null,
+      },
+    });
+
+    res.json(
+      successResponse(
+        { truckCode: truck.code },
+        `Truck ${truck.code} has been reset and is ready for a new journey.`,
+      ),
+    );
+  } catch (error) {
+    next(error);
+  }
+};

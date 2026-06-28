@@ -1,4 +1,11 @@
 // What a Sale looks like in API responses
+export type RegionResponse = {
+  id: string;
+  code: string;
+  name: string;
+  createdAt: string;
+};
+
 export type SaleResponse = {
   id: string;
   amount: number;
@@ -16,9 +23,11 @@ export type PackageResponse = {
   status: string;
   currentLocation: string | null;
   delayReason: string | null;
+  regionId: string | null;
   createdAt: string;
   updatedAt: string;
   sale: SaleResponse | null;
+  region: RegionResponse | null;
 };
 
 // What the dashboard response looks like

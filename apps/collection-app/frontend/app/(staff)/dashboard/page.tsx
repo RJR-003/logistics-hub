@@ -6,7 +6,10 @@ function PackageCard({ pkg }: { pkg: Package }) {
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-2">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-mono text-gray-500">
+        <span
+          title={pkg.trackingId}
+          className="text-sm font-mono text-gray-500"
+        >
           {pkg.trackingId.slice(0, 8)}...
         </span>
         <StatusBadge status={pkg.status} />
@@ -20,6 +23,14 @@ function PackageCard({ pkg }: { pkg: Package }) {
       <div className="text-sm text-gray-700">
         <span className="font-medium">Weight:</span> {pkg.weight} kg
       </div>
+      {pkg.region && (
+        <div className="text-sm text-gray-700">
+          <span className="font-medium">Region:</span> {pkg.region.name}
+          <span className="ml-1 text-xs text-gray-400">
+            ({pkg.region.code})
+          </span>
+        </div>
+      )}
       {pkg.currentLocation && (
         <div className="text-sm text-gray-700">
           <span className="font-medium">Location:</span> {pkg.currentLocation}

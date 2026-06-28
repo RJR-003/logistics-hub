@@ -13,6 +13,9 @@ import {
   Truck,
   Bag,
   Region,
+  recoverTruck,
+  transferBags,
+  resetTruck,
 } from "../lib/api";
 import StatusBadge from "../components/StatusBadge";
 import EmptyState from "../components/EmptyState";
@@ -47,6 +50,16 @@ export default function TrucksPage() {
   const [delayingTruck, setDelayingTruck] = useState<Truck | null>(null);
   const [delayReason, setDelayReason] = useState("");
   const [delaying, setDelaying] = useState(false);
+
+  //recover and transfer bags
+  const [recoveringTruck, setRecoveringTruck] = useState(false);
+  const [transferringTruck, setTransferringTruck] = useState<Truck | null>(
+    null,
+  );
+  const [transferToTruckId, setTransferToTruckId] = useState("");
+  const [transferring, setTransferring] = useState(false);
+
+  const [resetting, setResetting] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -159,6 +172,54 @@ export default function TrucksPage() {
       setError(err instanceof Error ? err.message : "Failed to delay truck");
     } finally {
       setDelaying(false);
+    }
+  }
+
+  async function handleRecover(truckId: string) {
+    setRecoveringTruck(true);
+    setError(null);
+    try {
+      await recoverTruck(truckId);
+      setSuccess("Truck delay resolved. It is ready to depart.");
+      fetchData();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to recover truck");
+    } finally {
+      setRecoveringTruck(false);
+    }
+  }
+
+  async function handleTransfer() {
+    if (!transferringTruck || !transferToTruckId) return;
+    setTransferring(true);
+    setError(null);
+    try {
+      await transferBags({
+        fromTruckId: transferringTruck.id,
+        toTruckId: transferToTruckId,
+      });
+      setSuccess("Bags transferred successfully.");
+      setTransferringTruck(null);
+      setTransferToTruckId("");
+      fetchData();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to transfer bags");
+    } finally {
+      setTransferring(false);
+    }
+  }
+
+  async function handleReset(truckId: string) {
+    setResetting(true);
+    setError(null);
+    try {
+      await resetTruck(truckId);
+      setSuccess("Truck reset successfully. It is ready for a new journey.");
+      fetchData();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to reset truck");
+    } finally {
+      setResetting(false);
     }
   }
 
@@ -331,6 +392,49 @@ export default function TrucksPage() {
         </div>
       )}
 
+      {/* Transfer bags panel */}
+      {transferringTruck && (
+        <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 space-y-3">
+          <p className="text-sm font-medium text-orange-800">
+            Transfer bags from delayed truck: {transferringTruck.code}
+          </p>
+          <div className="flex gap-3">
+            <select
+              value={transferToTruckId}
+              onChange={(e) => setTransferToTruckId(e.target.value)}
+              className="flex-1 border border-orange-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+            >
+              <option value="">Select destination truck...</option>
+              {trucks
+                .filter(
+                  (t) =>
+                    t.id !== transferringTruck.id &&
+                    t.status !== "DEPARTED" &&
+                    t.status !== "DELAYED",
+                )
+                .map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.code} — {t.status}
+                  </option>
+                ))}
+            </select>
+            <button
+              onClick={handleTransfer}
+              disabled={transferring || !transferToTruckId}
+              className="bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-700 disabled:opacity-50"
+            >
+              {transferring ? "Transferring..." : "Transfer Bags"}
+            </button>
+            <button
+              onClick={() => setTransferringTruck(null)}
+              className="border border-gray-300 text-gray-600 px-4 py-2 rounded-lg text-sm hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Trucks list */}
       <div className="space-y-3">
         {trucks.length === 0 ? (
@@ -402,6 +506,38 @@ export default function TrucksPage() {
                     >
                       Mark Arrived
                     </button>
+                  )}
+
+                  {truck.status === "ARRIVED" && (
+                    <button
+                      onClick={() => handleReset(truck.id)}
+                      disabled={resetting}
+                      className="text-blue-600 hover:text-blue-800 text-xs font-medium disabled:opacity-50"
+                    >
+                      Reset for New Journey
+                    </button>
+                  )}
+
+                  {/* For DELAYED trucks — show recover and transfer options */}
+                  {truck.status === "DELAYED" && (
+                    <>
+                      <button
+                        onClick={() => handleRecover(truck.id)}
+                        disabled={recoveringTruck}
+                        className="text-green-600 hover:text-green-800 text-xs font-medium disabled:opacity-50"
+                      >
+                        Resolve Delay
+                      </button>
+                      <button
+                        onClick={() => {
+                          setTransferringTruck(truck);
+                          setSuccess(null);
+                        }}
+                        className="text-orange-600 hover:text-orange-800 text-xs font-medium"
+                      >
+                        Transfer Bags
+                      </button>
+                    </>
                   )}
 
                   {/* Delay — not already delayed, departed, or arrived */}
