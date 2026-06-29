@@ -50,7 +50,14 @@ export async function runEtlPushJob() {
           orderBy: { createdAt: "desc" },
           take: 1, // only the latest status update
         },
-        bag: true,
+        bag: {
+          include: {
+            delay: true,
+            truck: {
+              include: { delay: true },
+            },
+          },
+        },
         region: true,
       },
     });
@@ -75,6 +82,10 @@ export async function runEtlPushJob() {
       bagCode: pkg.bag?.code || null,
       regionCode: pkg.region?.code || null,
       lastNote: pkg.statusUpdates[0]?.note || null,
+      delayReason:
+        pkg.status === "DELAYED"
+          ? pkg.bag?.delay?.reason || pkg.bag?.truck?.delay?.reason || null
+          : null,
       updatedAt: pkg.updatedAt.toISOString(),
     }));
 

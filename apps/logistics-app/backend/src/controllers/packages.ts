@@ -38,6 +38,14 @@ function toPackageResponse(pkg: any): PackageResponse {
           createdAt: pkg.region.createdAt.toISOString(),
         }
       : null,
+    destinationRegion: pkg.destinationRegion
+      ? {
+          id: pkg.destinationRegion.id,
+          code: pkg.destinationRegion.code,
+          name: pkg.destinationRegion.name,
+          createdAt: pkg.destinationRegion.createdAt.toISOString(),
+        }
+      : null,
     statusUpdates: pkg.statusUpdates?.map((s: any) => ({
       id: s.id,
       status: s.status,
@@ -158,6 +166,7 @@ export const getAllPackages = async (
       include: {
         bag: true,
         region: true,
+        destinationRegion: true,
         statusUpdates: {
           orderBy: { createdAt: "desc" },
           take: 1,

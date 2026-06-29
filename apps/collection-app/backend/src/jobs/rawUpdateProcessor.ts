@@ -10,6 +10,7 @@ interface PackageUpdate {
   bagCode: string | null;
   regionCode: string | null;
   lastNote: string | null;
+  delayReason: string | null;
   updatedAt: string;
 }
 
@@ -55,7 +56,10 @@ export async function runRawUpdateProcessor() {
             continue; // skip this one, process the rest
           }
 
-          if (pkg.status === update.status) {
+          if (
+            pkg.status === update.status &&
+            pkg.currentLocation === update.currentLocation
+          ) {
             console.log(
               `[Processor] Skipping ${update.trackingId} — already up to date`,
             );
@@ -71,7 +75,12 @@ export async function runRawUpdateProcessor() {
             where: { trackingId: update.trackingId },
             data: {
               status: update.status,
-              currentLocation: update.currentLocation,
+              ...(update.currentLocation !== null && {
+                currentLocation: update.currentLocation,
+              }),
+              ...(update.delayReason !== null && {
+                delayReason: update.delayReason,
+              }),
             },
           });
 

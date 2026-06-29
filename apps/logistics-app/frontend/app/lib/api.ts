@@ -43,6 +43,7 @@ export type Package = {
   updatedAt: string;
   bag?: Bag | null;
   region?: Region | null;
+  destinationRegion?: Region | null;
 };
 
 export type Bag = {
@@ -264,11 +265,14 @@ export async function transferBags(data: {
   await unwrap<{ totalBags: number }>(res);
 }
 
-export async function resetTruck(truckId: string): Promise<void> {
+export async function resetTruck(input: {
+  truckId: string;
+  scheduledDeparture?: string;
+}): Promise<void> {
   const res = await fetch(`${API_URL}/api/trucks/reset`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ truckId }),
+    body: JSON.stringify(input),
   });
   await unwrap<{ truckCode: string }>(res);
 }

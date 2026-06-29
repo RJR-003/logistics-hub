@@ -24,10 +24,12 @@ export type PackageResponse = {
   currentLocation: string | null;
   delayReason: string | null;
   regionId: string | null;
+  destinationRegionId: string | null;
   createdAt: string;
   updatedAt: string;
   sale: SaleResponse | null;
   region: RegionResponse | null;
+  destinationRegion: RegionResponse | null;
 };
 
 // What the dashboard response looks like

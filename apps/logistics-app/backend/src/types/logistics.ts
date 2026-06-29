@@ -33,6 +33,7 @@ export type PackageResponse = {
   updatedAt: string;
   bag?: BagResponse | null;
   region?: RegionResponse | null;
+  destinationRegion?: RegionResponse | null;
   statusUpdates?: StatusUpdateResponse[];
 };
 

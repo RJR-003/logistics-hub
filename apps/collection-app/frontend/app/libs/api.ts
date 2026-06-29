@@ -45,6 +45,7 @@ export type Package = {
   updatedAt: string;
   sale: Sale | null;
   region: Region | null;
+  destinationRegion: Region | null;
 };
 
 export type DashboardData = {
@@ -60,6 +61,7 @@ export type CreatePackageInput = {
   amount: number;
   paymentMethod: string;
   regionId?: string;
+  destinationRegionId?: string;
 };
 
 // Returns data on success, throws user-friendly message on error

@@ -26,6 +26,10 @@ COPY . .
 # Build TypeScript to JavaScript
 RUN npm run build
 
+# Compile seed separately
+RUN npx tsc prisma/seed.ts --outDir dist/prisma --module commonjs --esModuleInterop true --skipLibCheck true --resolveJsonModule true --ignoreConfig
+
+
 # Expose the port the app runs on
 EXPOSE 3001
 

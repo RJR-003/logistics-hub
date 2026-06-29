@@ -23,6 +23,7 @@ function toPackageResponse(pkg: any): PackageResponse {
     currentLocation: pkg.currentLocation,
     delayReason: pkg.delayReason,
     regionId: pkg.regionId,
+    destinationRegionId: pkg.destinationRegionId || null,
     createdAt: pkg.createdAt.toISOString(),
     updatedAt: pkg.updatedAt.toISOString(),
     sale: pkg.sale ? toSaleResponse(pkg.sale) : null,
@@ -32,6 +33,14 @@ function toPackageResponse(pkg: any): PackageResponse {
           code: pkg.region.code,
           name: pkg.region.name,
           createdAt: pkg.region.createdAt.toISOString(),
+        }
+      : null,
+    destinationRegion: pkg.destinationRegion
+      ? {
+          id: pkg.destinationRegion.id,
+          code: pkg.destinationRegion.code,
+          name: pkg.destinationRegion.name,
+          createdAt: pkg.destinationRegion.createdAt.toISOString(),
         }
       : null,
   };
@@ -124,8 +133,15 @@ export const createPackage = async (
   next: NextFunction,
 ) => {
   try {
-    const { fromAddress, toAddress, weight, amount, paymentMethod, regionId } =
-      req.body;
+    const {
+      fromAddress,
+      toAddress,
+      weight,
+      amount,
+      paymentMethod,
+      regionId,
+      destinationRegionId,
+    } = req.body;
 
     // Validate package fields
     if (!fromAddress || !toAddress || !weight) {
@@ -145,6 +161,14 @@ export const createPackage = async (
       throw new AppError(ErrorCodes.INVALID_SALE_DATA, 400);
     }
 
+    let regionCode: string | null = null;
+    if (regionId) {
+      const region = await prisma.region.findUnique({
+        where: { id: regionId },
+      });
+      regionCode = region?.code || null;
+    }
+
     // Create package AND sale in one transaction
     // Either both succeed or neither does — data stays consistent
     const newPackage = await prisma.package.create({
@@ -153,6 +177,8 @@ export const createPackage = async (
         toAddress,
         weight,
         regionId: regionId || null,
+        destinationRegionId: destinationRegionId || null,
+        currentLocation: regionCode || null,
         sale: {
           create: {
             amount,
@@ -163,6 +189,7 @@ export const createPackage = async (
       include: {
         sale: true, // return the sale details in the response
         region: true,
+        destinationRegion: true,
       },
     });
 
@@ -177,6 +204,8 @@ export const createPackage = async (
         toAddress: newPackage.toAddress,
         weight: newPackage.weight,
         regionCode: newPackage.region?.code || null,
+        destinationRegionCode: newPackage.destinationRegion?.code || null,
+        currentLocation: regionCode,
       }),
     }).catch((err) => {
       // Log but never fail the main request because of this

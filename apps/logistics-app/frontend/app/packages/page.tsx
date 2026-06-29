@@ -92,9 +92,24 @@ export default function PackagesPage() {
       {/* Assign to bag panel */}
       {selectedPackage && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
-          <p className="text-sm font-medium text-blue-800">
-            Assigning: {selectedPackage.trackingId.slice(0, 12)}...
-          </p>
+          <div className="flex items-center gap-3">
+            <p className="text-sm font-medium text-blue-800">
+              Assigning:{" "}
+              <span className="font-mono">
+                {selectedPackage.trackingId.slice(0, 8)}...
+              </span>
+            </p>
+            {selectedPackage.destinationRegion && (
+              <span className="text-xs bg-blue-200 text-blue-800 px-2 py-0.5 rounded-full font-medium">
+                → {selectedPackage.destinationRegion.code}
+              </span>
+            )}
+            {!selectedPackage.destinationRegion && (
+              <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
+                ⚠ No destination set
+              </span>
+            )}
+          </div>
           <div className="flex gap-3">
             <select
               value={selectedBagId}
@@ -140,6 +155,9 @@ export default function PackagesPage() {
                   Route
                 </th>
                 <th className="text-left px-4 py-3 text-gray-500 font-medium">
+                  Destination
+                </th>
+                <th className="text-left px-4 py-3 text-gray-500 font-medium">
                   Weight
                 </th>
                 <th className="text-left px-4 py-3 text-gray-500 font-medium">
@@ -157,11 +175,27 @@ export default function PackagesPage() {
               {packages.map((pkg) => (
                 <tr key={pkg.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 font-mono text-xs text-gray-600">
-                    {pkg.trackingId.slice(0, 12)}...
+                    <span title={pkg.trackingId}>
+                      {pkg.trackingId.slice(0, 8)}...
+                    </span>
                   </td>
                   <td className="px-4 py-3 text-gray-700">
                     <div>{pkg.fromAddress}</div>
                     <div className="text-gray-400">→ {pkg.toAddress}</div>
+                  </td>
+                  <td className="px-4 py-3">
+                    {pkg.destinationRegion ? (
+                      <div>
+                        <span className="text-xs font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">
+                          {pkg.destinationRegion.code}
+                        </span>
+                        <div className="text-xs text-gray-400 mt-1">
+                          {pkg.destinationRegion.name}
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-orange-500">⚠ Not set</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-gray-600">{pkg.weight}kg</td>
                   <td className="px-4 py-3">
@@ -175,7 +209,8 @@ export default function PackagesPage() {
                       {!pkg.bagId &&
                         (pkg.status === "TO_BE_PICKED_UP" ||
                           pkg.status === "PICKED_UP" ||
-                          pkg.status === "ARRIVED") && (
+                          pkg.status === "ARRIVED" ||
+                          pkg.status === "EN_ROUTE") && (
                           <button
                             onClick={() => {
                               setSelectedPackage(pkg);

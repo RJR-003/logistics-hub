@@ -20,6 +20,7 @@ model Region {
   createdAt DateTime  @default(now())
 
   packages  Package[]
+  destinationPackages Package[] @relation("DestinationRegion")
 }
 
 model Package {
@@ -32,9 +33,11 @@ model Package {
   currentLocation String? 
   delayReason     String?
   regionId        String?
+  destinationRegionId String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   region          Region?   @relation(fields: [regionId], references: [id])
+  destinationRegion Region?   @relation("DestinationRegion", fields: [destinationRegionId], references: [id])
   sale            Sale?
 }
 

@@ -266,7 +266,17 @@ export const arriveTruck = async (
 
     const truck = await prisma.truck.findUnique({
       where: { id: truckId },
-      include: { bags: { include: { packages: true } } },
+      include: {
+        bags: {
+          include: {
+            packages: {
+              include: {
+                destinationRegion: true,
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!truck) throw new AppError(ErrorCodes.TRUCK_NOT_FOUND, 404);
@@ -276,6 +286,8 @@ export const arriveTruck = async (
     }
 
     let totalPackages = 0;
+    let finalDestinationCount = 0;
+    let enRouteCount = 0;
 
     await prisma.$transaction(async (tx) => {
       await tx.truck.update({
@@ -290,10 +302,16 @@ export const arriveTruck = async (
         });
 
         for (const pkg of bag.packages) {
+          const isFinalDestination = pkg.destinationRegion?.code === regionCode;
+
+          const newStatus = isFinalDestination
+            ? PackageStatus.SCHEDULED_FOR_DELIVERY
+            : PackageStatus.EN_ROUTE;
+
           await tx.package.update({
             where: { id: pkg.id },
             data: {
-              status: PackageStatus.ARRIVED,
+              status: newStatus,
               currentLocation: regionCode,
               bagId: null,
             },
@@ -302,21 +320,31 @@ export const arriveTruck = async (
           await tx.statusUpdate.create({
             data: {
               packageId: pkg.id,
-              status: PackageStatus.ARRIVED,
+              status: newStatus,
               location: regionCode,
-              note: `Arrived at ${regionCode} hub`,
+              note: isFinalDestination
+                ? `Arrived at final destination ${regionCode} — scheduled for local delivery`
+                : `Arrived at ${regionCode} hub — in transit to final destination`,
             },
           });
 
           totalPackages++;
+          if (isFinalDestination) finalDestinationCount++;
+          else enRouteCount++;
         }
       }
     });
 
     res.json(
       successResponse(
-        { truckCode: truck.code, regionCode, totalPackages },
-        `Truck ${truck.code} arrived at ${regionCode}. ${totalPackages} package${totalPackages === 1 ? "" : "s"} ready for processing.`,
+        {
+          truckCode: truck.code,
+          regionCode,
+          totalPackages,
+          finalDestinationCount,
+          enRouteCount,
+        },
+        `Truck ${truck.code} arrived at ${regionCode}. ${finalDestinationCount} package${finalDestinationCount === 1 ? "" : "s"} reached final destination. ${enRouteCount} package${enRouteCount === 1 ? "" : "s"} continuing to next hub.`,
       ),
     );
   } catch (error) {
@@ -554,12 +582,13 @@ export const resetTruck = async (
   next: NextFunction,
 ) => {
   try {
-    const { truckId } = req.body;
+    const { truckId, scheduledDeparture } = req.body;
 
     if (!truckId) throw new AppError(ErrorCodes.INVALID_TRUCK_DATA, 400);
 
     const truck = await prisma.truck.findUnique({
       where: { id: truckId },
+      include: { bags: true },
     });
 
     if (!truck) throw new AppError(ErrorCodes.TRUCK_NOT_FOUND, 404);
@@ -568,12 +597,27 @@ export const resetTruck = async (
       throw new AppError(ErrorCodes.INVALID_TRUCK_DATA, 400);
     }
 
-    await prisma.truck.update({
-      where: { id: truckId },
-      data: {
-        status: TruckStatus.SCHEDULED,
-        actualDeparture: null,
-      },
+    await prisma.$transaction(async (tx) => {
+      // Detach all bags from this truck
+      await tx.bag.updateMany({
+        where: { truckId },
+        data: {
+          truckId: null,
+          status: BagStatus.ARRIVED,
+        },
+      });
+
+      // Reset the truck
+      await tx.truck.update({
+        where: { id: truckId },
+        data: {
+          status: TruckStatus.SCHEDULED,
+          actualDeparture: null,
+          scheduledDeparture: scheduledDeparture
+            ? new Date(scheduledDeparture)
+            : truck.scheduledDeparture, // keep old if not provided,
+        },
+      });
     });
 
     res.json(

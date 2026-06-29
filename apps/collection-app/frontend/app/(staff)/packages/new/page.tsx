@@ -20,6 +20,7 @@ export default function NewPackagePage() {
     amount: "",
     paymentMethod: "CASH",
     regionId: "",
+    destinationRegionId: "",
   });
 
   useEffect(() => {
@@ -47,6 +48,7 @@ export default function NewPackagePage() {
         amount: parseFloat(form.amount),
         paymentMethod: form.paymentMethod,
         regionId: form.regionId || undefined,
+        destinationRegionId: form.destinationRegionId || undefined,
       });
       setCreatedTrackingId(pkg.trackingId);
     } catch (err: unknown) {
@@ -87,6 +89,7 @@ export default function NewPackagePage() {
                   amount: "",
                   paymentMethod: "CASH",
                   regionId: "",
+                  destinationRegionId: "",
                 });
               }}
               className="flex-1 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm hover:bg-gray-50 transition-colors"
@@ -191,6 +194,24 @@ export default function NewPackagePage() {
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">Select region (optional)</option>
+                  {regions.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name} ({r.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Destination Region
+                </label>
+                <select
+                  name="destinationRegionId"
+                  value={form.destinationRegionId}
+                  onChange={handleChange}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select destination region (optional)</option>
                   {regions.map((r) => (
                     <option key={r.id} value={r.id}>
                       {r.name} ({r.code})

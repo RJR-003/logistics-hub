@@ -31,7 +31,7 @@ export default function BagsPage() {
   async function fetchBags() {
     try {
       const data = await getAllBags();
-      setBags(data);
+      setBags(data.filter((b) => b.status !== "ARRIVED"));
     } catch {
       setError("Failed to load bags");
     } finally {

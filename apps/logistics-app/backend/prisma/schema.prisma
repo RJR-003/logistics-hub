@@ -15,6 +15,7 @@ model Region {
   createdAt DateTime @default(now())
 
   packages  Package[]
+  destinationPackages Package[] @relation("DestinationRegion")
   trucks    Truck[]
 }
 
@@ -27,11 +28,13 @@ model Package {
   status          String   @default("TO_BE_PICKED_UP")
   currentLocation String?
   regionId        String?
+  destinationRegionId   String?
   bagId           String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   region          Region?        @relation(fields: [regionId], references: [id])
+  destinationRegion     Region?        @relation("DestinationRegion", fields: [destinationRegionId], references: [id])
   bag             Bag?           @relation(fields: [bagId], references: [id])
   statusUpdates   StatusUpdate[]
 }

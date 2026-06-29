@@ -59,6 +59,8 @@ export default function TrucksPage() {
   const [transferToTruckId, setTransferToTruckId] = useState("");
   const [transferring, setTransferring] = useState(false);
 
+  const [resettingTruck, setResettingTruck] = useState<Truck | null>(null);
+  const [resetDeparture, setResetDeparture] = useState("");
   const [resetting, setResetting] = useState(false);
 
   useEffect(() => {
@@ -209,12 +211,20 @@ export default function TrucksPage() {
     }
   }
 
-  async function handleReset(truckId: string) {
+  async function handleReset() {
+    if (!resettingTruck) return;
     setResetting(true);
     setError(null);
     try {
-      await resetTruck(truckId);
-      setSuccess("Truck reset successfully. It is ready for a new journey.");
+      await resetTruck({
+        truckId: resettingTruck.id,
+        scheduledDeparture: resetDeparture
+          ? new Date(resetDeparture).toISOString()
+          : undefined,
+      });
+      setSuccess(`Truck ${resettingTruck.code} reset successfully.`);
+      setResettingTruck(null);
+      setResetDeparture("");
       fetchData();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to reset truck");
@@ -434,6 +444,34 @@ export default function TrucksPage() {
           </div>
         </div>
       )}
+      {resettingTruck && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
+          <p className="text-sm font-medium text-blue-800">
+            Reset truck {resettingTruck.code} for a new journey
+          </p>
+          <div className="flex gap-3">
+            <input
+              type="datetime-local"
+              value={resetDeparture}
+              onChange={(e) => setResetDeparture(e.target.value)}
+              className="flex-1 border border-blue-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+            />
+            <button
+              onClick={handleReset}
+              disabled={resetting || !resetDeparture}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+            >
+              {resetting ? "Resetting..." : "Reset Truck"}
+            </button>
+            <button
+              onClick={() => setResettingTruck(null)}
+              className="border border-gray-300 text-gray-600 px-4 py-2 rounded-lg text-sm hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Trucks list */}
       <div className="space-y-3">
@@ -510,9 +548,11 @@ export default function TrucksPage() {
 
                   {truck.status === "ARRIVED" && (
                     <button
-                      onClick={() => handleReset(truck.id)}
-                      disabled={resetting}
-                      className="text-blue-600 hover:text-blue-800 text-xs font-medium disabled:opacity-50"
+                      onClick={() => {
+                        setResettingTruck(truck);
+                        setSuccess(null);
+                      }}
+                      className="text-blue-600 hover:text-blue-800 text-xs font-medium"
                     >
                       Reset for New Journey
                     </button>
