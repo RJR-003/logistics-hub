@@ -5,6 +5,7 @@ import { BagStatus, PackageStatus } from "../constants/packageStatus";
 import { ErrorCodes } from "../constants/errorCodes";
 import { successResponse } from "../types/api";
 import { BagResponse } from "../types/logistics";
+import { parsePagination, PaginatedResponse } from "../lib/pagination";
 
 function toBagResponse(bag: any): BagResponse {
   return {
@@ -140,19 +141,24 @@ export const getAllBags = async (
   next: NextFunction,
 ) => {
   try {
-    const bags = await prisma.bag.findMany({
-      orderBy: { createdAt: "desc" },
-      include: {
-        packages: true,
-        truck: true,
-        delay: true,
-      },
-    });
+    const { take, skip } = parsePagination(req);
+    const [bags, total] = await Promise.all([
+      prisma.bag.findMany({
+        orderBy: { createdAt: "desc" },
+        take,
+        skip,
+        include: { packages: true, truck: true, delay: true },
+      }),
+      prisma.bag.count(),
+    ]);
 
     res.json(
       successResponse(
-        { bags: bags.map(toBagResponse) },
-        `${bags.length} bag${bags.length === 1 ? "" : "s"} found.`,
+        {
+          items: bags.map(toBagResponse),
+          pagination: { limit: take, offset: skip, total },
+        },
+        `${bags.length} of ${total} bag${total === 1 ? "" : "s"} shown.`,
       ),
     );
   } catch (error) {

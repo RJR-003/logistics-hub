@@ -1,4 +1,5 @@
 import prisma from "../lib/prisma";
+import { retryFetch } from "../lib/retryFetch";
 
 const JOB_NAME = "etl-push-job";
 const APP1_RAW_UPDATES_URL = process.env.APP1_URL
@@ -90,16 +91,24 @@ export async function runEtlPushJob() {
     }));
 
     // Step 4 — Load: push to App 1's raw updates endpoint
-    const response = await fetch(APP1_RAW_UPDATES_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ updates: payload }),
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`App 1 rejected the payload: ${error}`);
-    }
+    const response = await retryFetch(
+      APP1_RAW_UPDATES_URL,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ updates: payload }),
+      },
+      {
+        maxRetries: 4,
+        initialDelayMs: 1000,
+        onRetry: (attempt, error) => {
+          console.warn(
+            `[ETL] Push attempt ${attempt} failed, retrying...`,
+            error instanceof Error ? error.message : error,
+          );
+        },
+      },
+    );
 
     // Step 5 — Update last sync timestamp
     await prisma.lastSync.update({

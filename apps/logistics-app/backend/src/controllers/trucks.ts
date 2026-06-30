@@ -9,6 +9,7 @@ import {
 import { ErrorCodes } from "../constants/errorCodes";
 import { successResponse } from "../types/api";
 import { TruckResponse } from "../types/logistics";
+import { parsePagination } from "../lib/pagination";
 
 function toTruckResponse(truck: any): TruckResponse {
   return {
@@ -101,19 +102,28 @@ export const getAllTrucks = async (
   next: NextFunction,
 ) => {
   try {
-    const trucks = await prisma.truck.findMany({
-      orderBy: { createdAt: "desc" },
-      include: {
-        region: true,
-        bags: { include: { packages: true } },
-        delay: true,
-      },
-    });
+    const { take, skip } = parsePagination(req);
+    const [trucks, total] = await Promise.all([
+      prisma.truck.findMany({
+        orderBy: { createdAt: "desc" },
+        take,
+        skip,
+        include: {
+          region: true,
+          bags: { include: { packages: true } },
+          delay: true,
+        },
+      }),
+      prisma.truck.count(),
+    ]);
 
     res.json(
       successResponse(
-        { trucks: trucks.map(toTruckResponse) },
-        `${trucks.length} truck${trucks.length === 1 ? "" : "s"} found.`,
+        {
+          items: trucks.map(toTruckResponse),
+          pagination: { limit: take, offset: skip, total },
+        },
+        `${trucks.length} of ${total} truck${total === 1 ? "" : "s"} shown.`,
       ),
     );
   } catch (error) {

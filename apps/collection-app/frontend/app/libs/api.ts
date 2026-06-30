@@ -110,3 +110,9 @@ export async function getRegions(): Promise<Region[]> {
   const data = await unwrap<{ regions: Region[] }>(res);
   return data.regions;
 }
+
+export async function getAllPackages(): Promise<Package[]> {
+  const res = await fetch(`${API_URL}/api/packages`, { cache: "no-store" });
+  const data = await unwrap<{ items: Package[]; pagination: object }>(res);
+  return data.items;
+}

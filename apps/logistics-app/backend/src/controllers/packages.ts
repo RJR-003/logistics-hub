@@ -5,6 +5,7 @@ import { PackageStatus } from "../constants/packageStatus";
 import { ErrorCodes } from "../constants/errorCodes";
 import { successResponse } from "../types/api";
 import { PackageResponse } from "../types/logistics";
+import { parsePagination } from "../lib/pagination";
 
 function toPackageResponse(pkg: any): PackageResponse {
   return {
@@ -161,23 +162,32 @@ export const getAllPackages = async (
   next: NextFunction,
 ) => {
   try {
-    const packages = await prisma.package.findMany({
-      orderBy: { createdAt: "desc" },
-      include: {
-        bag: true,
-        region: true,
-        destinationRegion: true,
-        statusUpdates: {
-          orderBy: { createdAt: "desc" },
-          take: 1,
+    const { take, skip } = parsePagination(req);
+    const [packages, total] = await Promise.all([
+      prisma.package.findMany({
+        orderBy: { createdAt: "desc" },
+        take,
+        skip,
+        include: {
+          bag: true,
+          region: true,
+          destinationRegion: true,
+          statusUpdates: {
+            orderBy: { createdAt: "desc" },
+            take: 1,
+          },
         },
-      },
-    });
+      }),
+      prisma.package.count(),
+    ]);
 
     res.json(
       successResponse(
-        { packages: packages.map(toPackageResponse) },
-        `${packages.length} package${packages.length === 1 ? "" : "s"} found.`,
+        {
+          items: packages.map(toPackageResponse),
+          pagination: { limit: take, offset: skip, total },
+        },
+        `${packages.length} of ${total} package${total === 1 ? "" : "s"} shown.`,
       ),
     );
   } catch (error) {

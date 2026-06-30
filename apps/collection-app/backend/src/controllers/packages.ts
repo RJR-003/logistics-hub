@@ -10,6 +10,8 @@ import {
   DashboardResponse,
   SaleResponse,
 } from "../types/package";
+import { retryFetch } from "../lib/retryFetch";
+import { parsePagination, PaginatedResponse } from "../lib/pagination";
 
 // Helper — converts Prisma package to our response type
 function toPackageResponse(pkg: any): PackageResponse {
@@ -65,6 +67,7 @@ export const getDashboard = async (
   next: NextFunction,
 ) => {
   try {
+    const DASHBOARD_SECTION_LIMIT = 50;
     // Run all three queries simultaneously
     // Promise.all fires them at the same time instead of one after another
     // Faster — three parallel DB queries instead of three sequential ones
@@ -74,26 +77,22 @@ export const getDashboard = async (
         where: {
           status: PackageStatus.TO_BE_PICKED_UP,
         },
-        include: { sale: true },
+        include: { sale: true, region: true, destinationRegion: true },
         orderBy: { createdAt: "desc" },
+        take: DASHBOARD_SECTION_LIMIT,
       }),
 
       // Section 2 — actively moving
       prisma.package.findMany({
         where: {
-          status: {
-            in: [
-              PackageStatus.PICKED_UP,
-              PackageStatus.ADDED_TO_BAG,
-              PackageStatus.EN_ROUTE,
-              PackageStatus.ARRIVED,
-              PackageStatus.SCHEDULED_FOR_DELIVERY,
-              PackageStatus.OUT_FOR_DELIVERY,
-            ],
-          },
+          AND: [
+            { status: { not: PackageStatus.TO_BE_PICKED_UP } },
+            { status: { not: "DELAYED" } },
+          ],
         },
-        include: { sale: true },
+        include: { sale: true, region: true, destinationRegion: true },
         orderBy: { updatedAt: "desc" },
+        take: DASHBOARD_SECTION_LIMIT,
       }),
 
       // Section 3 — delayed
@@ -101,8 +100,9 @@ export const getDashboard = async (
         where: {
           status: PackageStatus.DELAYED,
         },
-        include: { sale: true },
+        include: { sale: true, region: true, destinationRegion: true },
         orderBy: { updatedAt: "desc" },
+        take: DASHBOARD_SECTION_LIMIT,
       }),
     ]);
 
@@ -195,21 +195,36 @@ export const createPackage = async (
 
     // Fire webhook to App 2 — don't await, don't block the response
     // If App 2 is down, the package is still created in App 1
-    fetch(APP2_WEBHOOK_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        trackingId: newPackage.trackingId,
-        fromAddress: newPackage.fromAddress,
-        toAddress: newPackage.toAddress,
-        weight: newPackage.weight,
-        regionCode: newPackage.region?.code || null,
-        destinationRegionCode: newPackage.destinationRegion?.code || null,
-        currentLocation: regionCode,
-      }),
-    }).catch((err) => {
-      // Log but never fail the main request because of this
-      console.error("[Webhook] Failed to notify App 2:", err.message);
+    retryFetch(
+      APP2_WEBHOOK_URL,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          trackingId: newPackage.trackingId,
+          fromAddress: newPackage.fromAddress,
+          toAddress: newPackage.toAddress,
+          weight: newPackage.weight,
+          regionCode: newPackage.region?.code || null,
+          destinationRegionCode: newPackage.destinationRegion?.code || null,
+          currentLocation: regionCode,
+        }),
+      },
+      {
+        maxRetries: 4,
+        initialDelayMs: 1000,
+        onRetry: (attempt, error) => {
+          console.warn(
+            `[Webhook] Attempt ${attempt} failed, retrying...`,
+            error instanceof Error ? error.message : error,
+          );
+        },
+      },
+    ).catch((err) => {
+      console.error(
+        "[Webhook] Failed to notify App 2 after all retries:",
+        err instanceof Error ? err.message : err,
+      );
     });
 
     const responseData: CreatePackageResponse = {
@@ -236,15 +251,27 @@ export const getAllPackages = async (
   next: NextFunction,
 ) => {
   try {
-    const packages = await prisma.package.findMany({
-      orderBy: { createdAt: "desc" },
-      include: { sale: true, region: true },
-    });
+    const { take, skip } = parsePagination(req);
+
+    const [packages, total] = await Promise.all([
+      prisma.package.findMany({
+        orderBy: { createdAt: "desc" }, // always set — never unordered
+        take,
+        skip,
+        include: { sale: true, region: true, destinationRegion: true },
+      }),
+      prisma.package.count(),
+    ]);
+
+    const responseData: PaginatedResponse<PackageResponse> = {
+      items: packages.map(toPackageResponse),
+      pagination: { limit: take, offset: skip, total },
+    };
 
     res.json(
       successResponse(
-        { packages: packages.map(toPackageResponse) },
-        `${packages.length} package${packages.length === 1 ? "" : "s"} found.`,
+        responseData,
+        `${packages.length} of ${total} package${packages.length === 1 ? "" : "s"} shown.`,
       ),
     );
   } catch (error) {

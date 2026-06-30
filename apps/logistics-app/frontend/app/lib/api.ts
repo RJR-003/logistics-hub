@@ -98,20 +98,20 @@ export async function getDashboard(): Promise<DashboardData> {
 
 export async function getAllPackages(): Promise<Package[]> {
   const res = await fetch(`${API_URL}/api/packages`, { cache: "no-store" });
-  const data = await unwrap<{ packages: Package[] }>(res);
-  return data.packages;
+  const data = await unwrap<{ items: Package[]; pagination: object }>(res);
+  return data.items;
 }
 
 export async function getAllBags(): Promise<Bag[]> {
   const res = await fetch(`${API_URL}/api/bags`, { cache: "no-store" });
-  const data = await unwrap<{ bags: Bag[] }>(res);
-  return data.bags;
+  const data = await unwrap<{ items: Bag[]; pagination: object }>(res);
+  return data.items;
 }
 
 export async function getAllTrucks(): Promise<Truck[]> {
   const res = await fetch(`${API_URL}/api/trucks`, { cache: "no-store" });
-  const data = await unwrap<{ trucks: Truck[] }>(res);
-  return data.trucks;
+  const data = await unwrap<{ items: Truck[]; pagination: object }>(res);
+  return data.items;
 }
 
 export async function getAllRegions(): Promise<Region[]> {
