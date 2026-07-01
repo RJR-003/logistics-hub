@@ -10,6 +10,7 @@ import dashboardRoutes from "./routes/dashboard";
 import { runEtlPushJob } from "./jobs/etlPushJob";
 import truckRoutes from "./routes/trucks";
 import regionRoutes from "./routes/regions";
+import etlConfirmRoutes from "./routes/etlConfirm";
 
 const app: Application = express();
 const PORT = process.env.PORT || 3002;
@@ -23,6 +24,7 @@ app.use("/api/bags", bagRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/trucks", truckRoutes);
 app.use("/api/regions", regionRoutes);
+app.use("/api/etl/confirm", etlConfirmRoutes);
 
 app.get("/health", async (req: Request, res: Response) => {
   try {

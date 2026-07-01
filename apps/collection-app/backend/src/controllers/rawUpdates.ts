@@ -10,7 +10,7 @@ export const receiveRawUpdates = async (
   next: NextFunction,
 ) => {
   try {
-    const { updates } = req.body;
+    const { batchId, updates } = req.body;
 
     if (!updates || !Array.isArray(updates) || updates.length === 0) {
       throw new AppError(ErrorCodes.VALIDATION_ERROR, 400);
@@ -19,20 +19,18 @@ export const receiveRawUpdates = async (
     // Save the entire payload as one raw update record
     // Don't process it here — just store it safely
     const rawUpdate = await prisma.rawUpdate.create({
-      data: {
-        payload: updates,
-      },
+      data: { payload: { batchId, updates } },
     });
 
     console.log(
-      `[RawUpdates] Received ${updates.length} updates, saved as ${rawUpdate.id}`,
+      `[RawUpdates] Received batch ${batchId} — ${updates.length} updates, saved as ${rawUpdate.id}`,
     );
 
     res
       .status(201)
       .json(
         successResponse(
-          { rawUpdateId: rawUpdate.id, count: updates.length },
+          { rawUpdateId: rawUpdate.id, batchId, count: updates.length },
           `${updates.length} status update${updates.length === 1 ? "" : "s"} received and queued for processing.`,
         ),
       );

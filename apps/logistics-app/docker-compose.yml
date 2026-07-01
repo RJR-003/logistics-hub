@@ -27,6 +27,8 @@ services:
     restart: unless-stopped
     ports:
       - "3002:3002"
+    env_file:
+      - ./backend/.env
     environment:
       PORT: 3002
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/logistics_db

@@ -19,64 +19,37 @@ export async function runEtlPushJob() {
   isRunning = true;
 
   try {
-    // Step 1 — Get or create the last sync record
-    let lastSync = await prisma.lastSync.findUnique({
-      where: { jobName: JOB_NAME },
-    });
+    const unsyncedRows = await prisma.$queryRaw<Array<{ trackingId: string }>>`
+      SELECT "trackingId"
+      FROM "Package"
+      WHERE status IS DISTINCT FROM "lastSyncedStatus"
+      ORDER BY "updatedAt" ASC
+      LIMIT 200
+    `;
 
-    if (!lastSync) {
-      // First time running — create the record
-      // Use a date far in the past so all packages are picked up
-      lastSync = await prisma.lastSync.create({
-        data: {
-          jobName: JOB_NAME,
-          lastRunAt: new Date("2000-01-01"),
-        },
-      });
-      console.log("[ETL] First run — syncing all packages");
+    if (unsyncedRows.length === 0) {
+      console.log("[ETL] No unsynced packages to push");
+      return;
     }
 
-    const lastRunAt = lastSync.lastRunAt;
-    console.log(
-      `[ETL] Fetching packages updated since ${lastRunAt.toISOString()}`,
-    );
+    const trackingIds = unsyncedRows.map((r) => r.trackingId);
 
-    // Step 2 — Extract: find all packages updated since last run
-    const updatedPackages = await prisma.package.findMany({
-      where: {
-        updatedAt: { gt: lastRunAt },
-      },
+    const trulyUnsynced = await prisma.package.findMany({
+      where: { trackingId: { in: trackingIds } },
       include: {
-        statusUpdates: {
-          orderBy: { createdAt: "desc" },
-          take: 1, // only the latest status update
-        },
-        bag: {
-          include: {
-            delay: true,
-            truck: {
-              include: { delay: true },
-            },
-          },
-        },
+        statusUpdates: { orderBy: { createdAt: "desc" }, take: 1 },
+        bag: { include: { delay: true, truck: { include: { delay: true } } } },
         region: true,
       },
     });
 
-    if (updatedPackages.length === 0) {
-      console.log("[ETL] No updates to push");
-      // Still update lastRunAt so next run has correct window
-      await prisma.lastSync.update({
-        where: { jobName: JOB_NAME },
-        data: { lastRunAt: new Date() },
-      });
-      return;
-    }
+    const batchId = `batch-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-    console.log(`[ETL] Found ${updatedPackages.length} packages to push`);
+    console.log(
+      `[ETL] Found ${trulyUnsynced.length} unsynced packages — batch ${batchId}`,
+    );
 
-    // Step 3 — Transform: shape the data into what App 1 expects
-    const payload = updatedPackages.map((pkg) => ({
+    const payload = trulyUnsynced.map((pkg) => ({
       trackingId: pkg.trackingId,
       status: pkg.status,
       currentLocation: pkg.currentLocation,
@@ -90,13 +63,15 @@ export async function runEtlPushJob() {
       updatedAt: pkg.updatedAt.toISOString(),
     }));
 
-    // Step 4 — Load: push to App 1's raw updates endpoint
-    const response = await retryFetch(
+    await retryFetch(
       APP1_RAW_UPDATES_URL,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ updates: payload }),
+        headers: {
+          "Content-Type": "application/json",
+          "X-API-Key": process.env.INTER_SERVICE_API_KEY || "",
+        },
+        body: JSON.stringify({ batchId, updates: payload }),
       },
       {
         maxRetries: 4,
@@ -110,16 +85,15 @@ export async function runEtlPushJob() {
       },
     );
 
-    // Step 5 — Update last sync timestamp
-    await prisma.lastSync.update({
-      where: { jobName: JOB_NAME },
-      data: { lastRunAt: new Date() },
-    });
-
-    console.log(`[ETL] Successfully pushed ${payload.length} updates to App 1`);
+    console.log(
+      `[ETL] Successfully pushed batch ${batchId} (${payload.length} packages)`,
+    );
   } catch (error) {
     // Log but don't crash — job will retry on next run
-    console.error("[ETL] Job failed:", error);
+    console.error(
+      "[ETL] Job failed after all retries:",
+      error instanceof Error ? error.message : error,
+    );
   } finally {
     isRunning = false; // always release lock even if job fails
   }

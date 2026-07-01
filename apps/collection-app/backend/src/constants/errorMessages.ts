@@ -17,4 +17,5 @@ export const ErrorMessages: Record<ErrorCode, string> = {
     "Something went wrong on our end. Please try again in a moment.",
   [ErrorCodes.DATABASE_ERROR]:
     "We are having trouble accessing our records. Please try again shortly.",
+  [ErrorCodes.UNAUTHORIZED]: "You are not authorized to perform this action.",
 };

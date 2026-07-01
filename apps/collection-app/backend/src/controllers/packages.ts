@@ -199,7 +199,10 @@ export const createPackage = async (
       APP2_WEBHOOK_URL,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-API-Key": process.env.INTER_SERVICE_API_KEY || "",
+        },
         body: JSON.stringify({
           trackingId: newPackage.trackingId,
           fromAddress: newPackage.fromAddress,

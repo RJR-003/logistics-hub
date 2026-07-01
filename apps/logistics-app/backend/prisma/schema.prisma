@@ -30,6 +30,8 @@ model Package {
   regionId        String?
   destinationRegionId   String?
   bagId           String?
+  lastSyncedStatus    String? 
+  lastSyncedAt        DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -88,11 +90,4 @@ model StatusUpdate {
   createdAt   DateTime @default(now())
 
   package     Package  @relation(fields: [packageId], references: [id])
-}
-
-model LastSync {
-  id          String   @id @default(uuid())
-  jobName     String   @unique
-  lastRunAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
 }

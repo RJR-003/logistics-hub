@@ -1,9 +1,8 @@
 import { Router } from "express";
-import { receivePackage } from "../controllers/webhook";
+import { confirmEtlBatch } from "../controllers/etlConfirm";
 import { serviceAuth } from "../middleware/serviceAuth";
 
 const router = Router();
 // Protected — only collection app should call this
-router.post("/package", serviceAuth, receivePackage);
-
+router.post("/", serviceAuth, confirmEtlBatch);
 export default router;
